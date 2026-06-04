@@ -332,6 +332,101 @@
       </div>
     </div>
   </section>
+
+  <!-- ============== BETA: experimental analyses ================= -->
+  <section class="card beta" id="betaCard" aria-label="beta features" style="grid-column:1/-1">
+    <div class="beta-head">
+      <h2 style="margin:0">Beta workbench <span class="tag">experimental</span></h2>
+      <label class="switch" title="Enable the experimental analyses below">
+        <input type="checkbox" id="betaEnable"/><span class="track"><span class="thumb"></span></span>
+        <span class="switch-lbl">Enable</span>
+      </label>
+    </div>
+    <p class="beta-note" id="betaIntro">
+      Extra views a Witschi-class machine shows beyond the three headline numbers.
+      These are derived live from the same beat stream — handy, occasionally
+      finicky, and meant for tinkering. Flip the switch to wake them up.
+    </p>
+
+    <div class="beta-grid" id="betaBody" hidden>
+      <!-- Sub-pulse oscilloscope -->
+      <div class="beta-tile">
+        <h3>Sub-pulse scope <small>one beat, magnified</small></h3>
+        <div class="trace-wrap" style="height:150px">
+          <canvas id="scope"></canvas>
+          <div class="ovl"><span class="dot" style="background:var(--accent)"></span>unlock <span class="dot" style="background:var(--ink)"></span>impulse</div>
+          <div class="ovl r"><span id="scopeDt">—</span></div>
+        </div>
+        <p class="beta-cap">The escapement fires three micro-impulses per tick. Amplitude
+          comes from the unlock→impulse gap Δt. If the green marker keeps vanishing,
+          the unlock pulse is below the noise floor — press the watch closer or add gain.</p>
+      </div>
+
+      <!-- Positional analysis -->
+      <div class="beta-tile">
+        <h3>Positional spread <small>from the session log</small></h3>
+        <div class="trace-wrap" style="height:230px">
+          <canvas id="polar"></canvas>
+        </div>
+        <div class="beta-readout">
+          <span>Δ positions <b id="posDelta">—</b> s/d</span>
+          <span>fastest <b id="posBest">—</b></span>
+          <span>slowest <b id="posWorst">—</b></span>
+        </div>
+        <p class="beta-cap">Log a reading in each of the six positions; the rosette plots
+          rate per position and the spread (max−min) — the single most telling
+          measure of a movement's regulation.</p>
+      </div>
+
+      <!-- Isochronism -->
+      <div class="beta-tile">
+        <h3>Isochronism <small>rate vs amplitude</small></h3>
+        <div class="trace-wrap" style="height:180px">
+          <canvas id="iso"></canvas>
+        </div>
+        <div class="beta-readout">
+          <span>slope <b id="isoSlope">—</b> s/d per 10°</span>
+          <span>points <b id="isoN">0</b></span>
+        </div>
+        <p class="beta-cap">As the mainspring unwinds, amplitude falls. A flat line means
+          the watch keeps time regardless of amplitude — the hallmark of a good
+          hairspring. Builds up as you log readings over a wind-down.</p>
+      </div>
+
+      <!-- Tools: lift calibration + sonifier -->
+      <div class="beta-tile">
+        <h3>Tools <small>calibration &amp; audio</small></h3>
+        <div class="tool-block">
+          <div class="tool-lbl">Lift-angle auto-calibration</div>
+          <p class="beta-cap" style="margin:.1rem 0 .5rem">Trust your amplitude on one
+            reference position? Enter its true amplitude and snap the lift angle so the
+            measurement matches — every other position then reads correctly.</p>
+          <div class="row" style="align-items:flex-end">
+            <label style="flex:1 1 90px">Reference A (°)
+              <input type="number" id="refAmp" min="150" max="330" step="1" value="300"/>
+            </label>
+            <button id="calLiftBtn" class="ghost" disabled>Snap lift angle</button>
+          </div>
+          <div id="calLiftOut" class="tool-out"></div>
+        </div>
+        <div class="tool-block">
+          <div class="tool-lbl">Audible beat <small style="color:var(--mute);font-weight:400">— hear the beat error</small></div>
+          <p class="beta-cap" style="margin:.1rem 0 .5rem">Re-synthesises the detected tick
+            &amp; tock as two soft clicks at the measured cadence and offset. A perfectly
+            regulated watch sounds like an even gallop; beat error makes it limp.</p>
+          <div class="row" style="align-items:center">
+            <label class="switch">
+              <input type="checkbox" id="sonifyEnable"/><span class="track"><span class="thumb"></span></span>
+              <span class="switch-lbl">Play</span>
+            </label>
+            <label style="flex:1 1 120px">Volume
+              <input type="range" id="sonVol" min="0" max="100" step="1" value="35"/>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -398,10 +493,29 @@ const ui = {
   micProfile:$('micProfile'), gain:$('gain'), gainTxt:$('gainTxt'),
   sensTxt:$('sensTxt'), preEmph:$('preEmph'),
   calibrateBtn:$('calibrateBtn'), calResult:$('calResult'),
+  // beta workbench
+  betaEnable:$('betaEnable'), betaBody:$('betaBody'), betaIntro:$('betaIntro'),
+  scope:$('scope'), scopeDt:$('scopeDt'),
+  polar:$('polar'), posDelta:$('posDelta'), posBest:$('posBest'), posWorst:$('posWorst'),
+  iso:$('iso'), isoSlope:$('isoSlope'), isoN:$('isoN'),
+  refAmp:$('refAmp'), calLiftBtn:$('calLiftBtn'), calLiftOut:$('calLiftOut'),
+  sonifyEnable:$('sonifyEnable'), sonVol:$('sonVol'),
 };
 ui.bph.addEventListener('change',()=>{ui.customLabel.style.display=ui.bph.value==='custom'?'':'none';});
 
 const STANDARD_BPH = [18000,19800,21600,25200,28800,36000];
+
+// Canvas palette — mirrors the CSS custom properties so the 2D contexts share
+// the same warm "paper instrument" look as the DOM. Kept in JS (not read from
+// CSS) so first paint is correct even before styles resolve.
+const PAL = {
+  paper:'#fbf8f1', paperEdge:'#f1ece0',
+  grid:'#e7e0cf', grid2:'#d8cfb8', axis:'#c2b692',
+  ink:'#33312b', faint:'#a89d84', mute:'#8f8674',
+  tick:'#2f8f6a', tock:'#3f72a4', warn:'#bd8a3c', bad:'#c0584f',
+  tickSoft:'rgba(47,143,106,.16)', tockSoft:'rgba(63,114,164,.16)',
+  dim:'#b9ae95'
+};
 
 // ============================================================================
 //  MOVEMENT PRESETS  (BPH and lift-angle taken from manufacturer specs /
@@ -1084,6 +1198,7 @@ async function start(){
 
   ui.start.disabled=true; ui.stop.disabled=false; ui.reset.disabled=false;
   ui.logBtn.disabled=false; ui.calibrateBtn.disabled=false;
+  setBetaLiveEnabled(true);
   ui.status.classList.add('live'); ui.statusText.textContent = usedWorklet?'listening · worklet':'listening · sp';
   requestAnimationFrame(draw);
 }
@@ -1092,6 +1207,7 @@ function stop(){
   ui.start.disabled=false; ui.stop.disabled=true;
   ui.statusText.textContent='stopped'; ui.status.classList.remove('live');
   ui.logBtn.disabled=true; ui.calibrateBtn.disabled=true;
+  setBetaLiveEnabled(false); sonifyStop();
   life.active = false;
   releaseWakeLock();
   if(autoLogTimer){ clearInterval(autoLogTimer); autoLogTimer=null; }
@@ -1337,6 +1453,7 @@ function analyze(){
   // ---- amplitude from sub-pulse spacing ----
   const liftAngle = parseFloat(ui.lift.value)||52;
   const ampDeg = estimateAmplitude(measHalf, liftAngle);
+  const ampConf = ampDiag.conf;
 
   // ---- confidence ----
   const inlierRatio = nIn/n;
@@ -1345,17 +1462,20 @@ function analyze(){
   // ---- update readouts with colour coding ----
   ui.rate.textContent  = (rateSpd>=0?'+':'') + rateSpd.toFixed(1);
   ui.be.textContent    = beatErrMs.toFixed(2);
-  ui.amp.textContent   = ampDeg ? ampDeg.toFixed(0) : '—';
+  // Show amplitude even at lower confidence, flagged with a leading "~".
+  ui.amp.textContent   = ampDeg ? ((ampConf<0.5?'~':'') + ampDeg.toFixed(0)) : '—';
   ui.bphOut.textContent= chosenBPH.toFixed(0);
   ui.conf.textContent  = isFinite(qual)? qual : '—';
 
   setCellClass(ui.rateCell, Math.abs(rateSpd)<10?'ok':Math.abs(rateSpd)<30?'warn':'bad');
   setCellClass(ui.beCell,   beatErrMs<0.5?'ok':beatErrMs<1.0?'warn':'bad');
   if(ampDeg){
-    setCellClass(ui.ampCell, ampDeg>=270&&ampDeg<=310?'ok':ampDeg>=240&&ampDeg<330?'warn':'bad');
+    // Low-confidence readings are never shown as "ok" green.
+    const inBand = ampDeg>=270&&ampDeg<=310, nearBand = ampDeg>=240&&ampDeg<330;
+    setCellClass(ui.ampCell, (inBand&&ampConf>=0.5)?'ok':nearBand?'warn':'bad');
   } else setCellClass(ui.ampCell,'');
 
-  lastInfo = { chosenBPH, expHalf, measHalf, rateSpd, beatErrMs, ampDeg, qual,
+  lastInfo = { chosenBPH, expHalf, measHalf, rateSpd, beatErrMs, ampDeg, ampConf, qual,
                jitterMs, rateSE_spd, A_fit, B_fit, C_fit, beatIndex, inlier };
   return lastInfo;
 }
@@ -1382,65 +1502,125 @@ function det3(m){
 }
 
 // ----------------------------------------------------------------------------
-//  AMPLITUDE — find sub-pulse spacing (unlock → drop) per beat from fastBuf
+//  AMPLITUDE — find sub-pulse spacing (unlock → impulse) per beat from fastBuf
 // ----------------------------------------------------------------------------
+// Diagnostics from the most recent amplitude estimate — consumed by the beta
+// sub-pulse oscilloscope and the lift-angle auto-calibration.
+let ampDiag = { conf:0, n:0, attempts:0, dt:0, scope:null };
+
+// helper: read a sample from the fast-envelope ring at a non-negative lag `k`
+// before absolute ring index `idx` (idx-k, wrapped).
+function fastAt(idx, k){ return fastBuf[(idx - k + fastBuf.length*2) % fastBuf.length]; }
+
 function estimateAmplitude(measHalf, liftAngle){
+  ampDiag = { conf:0, n:0, attempts:0, dt:0, scope:ampDiag.scope };
   if(!fastBuf || beats.length<6) return null;
   const T_balance = 2*measHalf;                  // full balance period
   const now = audioCtx.currentTime - sessionStart;
   const ringSec = fastBuf.length / sampleRate;
   const oldestRingTime = now - ringSec;          // session-time of oldest sample in ring
+  const endIdx = (fastWrite - 1 + fastBuf.length) % fastBuf.length;
+
+  // Window bounds (in samples) for the unlock search, ahead of the impulse.
+  const minLook = Math.max(1, Math.floor(sampleRate*0.0010));   // 1.0 ms
+  const maxLook = Math.floor(sampleRate*0.0095);                // 9.5 ms
+  const refineSpan = Math.floor(sampleRate*0.0035);             // ±3.5 ms peak refine
+  const noiseTo   = Math.floor(sampleRate*0.012);               // noise window 12..26 ms back
+  const noiseFrom = Math.floor(sampleRate*0.026);
 
   const offsets = [];
-  // look at last ~30 beats inside the ring
+  let attempts = 0;
+  let bestScope = null, bestScopeV = -1;
+
+  // look at last ~30 beats fully contained in the ring
   for(let i=Math.max(0,beats.length-30); i<beats.length; i++){
     const b = beats[i];
-    if(b.t < oldestRingTime + 0.02) continue;
-    if(now - b.t < 0.02) continue;
-    // location in ring of beat peak
-    const samplesFromNow = Math.floor((now - b.t)*sampleRate);
-    const endIdx = (fastWrite - 1 + fastBuf.length) % fastBuf.length;
-    const peakIdx = (endIdx - samplesFromNow + fastBuf.length) % fastBuf.length;
+    if(b.t < oldestRingTime + 0.030) continue;   // need ~26 ms of pre-roll for noise window
+    if(now - b.t < 0.012) continue;              // too fresh — impulse not fully past
+    attempts++;
 
-    // search window: from 1.2 ms before peak back to 9 ms before peak
-    const minLook = Math.floor(sampleRate*0.0012);
-    const maxLook = Math.floor(sampleRate*0.009);
-    // baseline noise floor = median of [peak-25ms, peak-12ms]
-    const noiseFrom = Math.floor(sampleRate*0.025), noiseTo=Math.floor(sampleRate*0.012);
-    const noiseSamples = [];
-    for(let k=noiseTo; k<noiseFrom; k++){
-      noiseSamples.push(fastBuf[(peakIdx - k + fastBuf.length) % fastBuf.length]);
+    // Nominal location of the beat in the ring (slow-envelope timestamp lags the
+    // true fast-envelope impulse by the slow LP group delay). Refine by snapping
+    // to the actual fast-envelope local maximum nearby — this removes the
+    // group-delay bias that previously made the unlock search miss entirely.
+    const samplesFromNow = Math.floor((now - b.t)*sampleRate);
+    const nomIdx = (endIdx - samplesFromNow + fastBuf.length) % fastBuf.length;
+    let impIdx = nomIdx, impV = fastAt(nomIdx, 0);
+    for(let d=-refineSpan; d<=refineSpan; d++){
+      const idx = (nomIdx + d + fastBuf.length) % fastBuf.length;
+      const v = fastBuf[idx];
+      if(v > impV){ impV = v; impIdx = idx; }
     }
+    if(impV <= 0) continue;
+
+    // baseline noise floor = median of [imp-26ms, imp-12ms]
+    const noiseSamples = [];
+    for(let k=noiseTo; k<noiseFrom; k++) noiseSamples.push(fastAt(impIdx, k));
     const noiseMed = median(noiseSamples);
     const noiseMad = mad(noiseSamples, noiseMed) * 1.4826 || 1e-9;
-    // candidate unlock = local max in window above noiseMed + 5·MAD
+
+    // Candidate unlock = the strongest local maximum in the window that clears
+    // an adaptive threshold. Try a strict gate first, relax once if nothing is
+    // found, so weak unlock pulses still register (with lower confidence).
     let bestV = 0, bestK = -1;
-    const thr = noiseMed + 5*noiseMad;
-    let prev=0, curr=0, next=0;
-    for(let k=minLook; k<maxLook; k++){
-      const v = fastBuf[(peakIdx - k + fastBuf.length) % fastBuf.length];
-      if(v > thr && v > bestV){ bestV = v; bestK = k; }
+    for(const nSig of [4.0, 2.5]){
+      const thr = noiseMed + nSig*noiseMad;
+      for(let k=minLook; k<maxLook; k++){
+        const v   = fastAt(impIdx, k);
+        const vL  = fastAt(impIdx, k+1);
+        const vR  = fastAt(impIdx, k-1);
+        if(v > thr && v >= vL && v >= vR && v > bestV){ bestV = v; bestK = k; }
+      }
+      if(bestK > 0) break;
     }
-    if(bestK>0){
-      // Refine via parabolic interp around bestK in the same axis
-      const a = fastBuf[(peakIdx - (bestK+1) + fastBuf.length) % fastBuf.length];
-      const c = fastBuf[(peakIdx - (bestK-1) + fastBuf.length) % fastBuf.length];
+    if(bestK > 0){
+      // Parabolic refine of the unlock-peak position.
+      const a = fastAt(impIdx, bestK+1), c = fastAt(impIdx, bestK-1);
       let off = 0; const den = (a - 2*bestV + c);
       if(Math.abs(den)>1e-18) off = 0.5*(a-c)/den;
       if(!(off>-1 && off<1)) off=0;
-      const dt = (bestK - off) / sampleRate;        // seconds between unlock and drop
-      if(dt > 0.0015 && dt < 0.010) offsets.push(dt);
+      const dt = (bestK - off) / sampleRate;        // unlock → impulse interval
+      if(dt > 0.0015 && dt < 0.0095){
+        offsets.push(dt);
+        // keep the clearest beat for the oscilloscope
+        if(bestV > bestScopeV){ bestScopeV = bestV;
+          bestScope = buildScopeSlice(impIdx, bestK - off, noiseMed + 4*noiseMad); }
+      }
     }
   }
-  if(offsets.length < 4) return null;
+
+  ampDiag.attempts = attempts;
+  ampDiag.n = offsets.length;
+  if(bestScope) ampDiag.scope = bestScope;
+  if(offsets.length < 3) return null;
+
   const dt = robustMean(offsets);
+  ampDiag.dt = dt;
+  // confidence ≈ fraction of attempted beats that yielded a clean unlock pulse
+  ampDiag.conf = attempts ? Math.min(1, offsets.length/Math.max(4, attempts*0.8)) : 0;
+
   // amplitude = lift / (2·sin(π·Δt / T_balance))
-  const arg = Math.PI * dt / T_balance;
-  const s = Math.sin(arg);
+  const s = Math.sin(Math.PI * dt / T_balance);
   if(s < 1e-3) return null;
   const A = liftAngle / (2*s);
   if(A < 140 || A > 340) return null;
   return A;
+}
+
+// Capture a short fast-envelope slice around one beat for the sub-pulse scope.
+// Returns {samples, impulseK, unlockK, thr, sr} where indices are *lags* (ms
+// before the impulse grows to the right edge). samples[0] is oldest.
+function buildScopeSlice(impIdx, unlockLag, thr){
+  const pre  = Math.floor(sampleRate*0.012);   // 12 ms before impulse
+  const post = Math.floor(sampleRate*0.004);   // 4 ms after impulse
+  const len  = pre + post;
+  const out  = new Float32Array(len);
+  for(let j=0;j<len;j++){
+    // j=0 → impIdx-pre (oldest);  j=len-1 → impIdx+post (newest)
+    const lag = pre - j;                         // lag relative to impulse
+    out[j] = fastAt(impIdx, lag);
+  }
+  return { samples:out, pre, post, impulseJ:pre, unlockJ:pre-unlockLag, thr, sr:sampleRate };
 }
 
 // ============================================================================
@@ -1456,6 +1636,7 @@ function draw(){
   lastLife = lifeAnalyze();
   sampleRateHistory(info, lastLife);
   drawTrend();
+  betaTick();
 
   // --- envelope strip --------------------------------------------------------
   {
@@ -1726,12 +1907,280 @@ function renderLog(){
   ui.logWrap.querySelectorAll('td.del').forEach(td=>{
     td.onclick = () => { sessionLog.splice(+td.dataset.i,1); renderLog(); persistLogNow(); };
   });
+  updateBetaLog();
 }
 
 // Load persisted log on startup
 loadPersistedLog();
 // Apply default mic profile so initial UI is consistent
 applyMicProfile();
+
+// ============================================================================
+//  BETA WORKBENCH — sub-pulse scope, positional rosette, isochronism,
+//  lift-angle auto-calibration, and an audible beat-error sonifier.
+// ============================================================================
+let betaActive = false;
+const POSITIONS = ['DU','DD','CU','CD','CL','CR'];
+const POS_LABEL = { DU:'dial ↑', DD:'dial ↓', CU:'6 ↑', CD:'12 ↑', CL:'3 ↑', CR:'9 ↑' };
+
+ui.betaEnable.addEventListener('change', ()=>{
+  betaActive = ui.betaEnable.checked;
+  ui.betaBody.hidden = !betaActive;
+  ui.betaIntro.style.display = betaActive ? 'none' : '';
+  if(betaActive){ updateBetaLog(); drawScope(); }
+  if(!betaActive) sonifyStop();
+});
+
+// Called from the main draw() loop while beta is on (live scope refresh).
+function betaTick(){ if(betaActive) drawScope(); }
+// Called whenever the session log changes (positional + isochronism).
+function updateBetaLog(){ if(!betaActive) return; updatePositional(); drawIso(); }
+
+// ----- helper: latest logged reading per position --------------------------
+function latestByPosition(){
+  const map = {};
+  for(const e of sessionLog){ if(e.position) map[e.position] = e; }
+  return map;
+}
+
+// ----- Sub-pulse oscilloscope ----------------------------------------------
+function drawScope(){
+  const c = ui.scope, r = dpr(c), W = c.width, H = c.height, ctx = c.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = PAL.paper; ctx.fillRect(0,0,W,H);
+  const sc = ampDiag.scope;
+  if(!sc){
+    ctx.fillStyle = PAL.faint; ctx.font = (12*r)+'px ui-monospace,monospace';
+    ctx.textAlign='center'; ctx.fillText('waiting for a clean beat…', W/2, H/2); ctx.textAlign='left';
+    ui.scopeDt.textContent='—';
+    return;
+  }
+  const N = sc.samples.length;
+  let mx = 1e-9; for(let i=0;i<N;i++) if(sc.samples[i]>mx) mx=sc.samples[i];
+  const padB = 16*r, padT = 8*r;
+  const x = j => (j/(N-1))*W;
+  const y = v => H - padB - (v/mx)*(H - padB - padT);
+
+  // time grid every 2 ms
+  const msToJ = ms => (sc.pre + ms*sc.sr/1000); // ms relative to impulse (impulse at j=pre)
+  ctx.strokeStyle = PAL.grid; ctx.lineWidth = 1*r; ctx.fillStyle = PAL.faint;
+  ctx.font = (9*r)+'px ui-monospace,monospace';
+  for(let ms=-12; ms<=4; ms+=2){
+    const j = msToJ(ms); if(j<0||j>N-1) continue;
+    const px = x(j);
+    ctx.strokeStyle = ms===0 ? PAL.axis : PAL.grid;
+    ctx.beginPath(); ctx.moveTo(px,padT-2*r); ctx.lineTo(px,H-padB); ctx.stroke();
+    ctx.fillText((ms>0?'+':'')+ms, px+2*r, H-4*r);
+  }
+  // threshold line
+  if(sc.thr>0 && sc.thr<mx){
+    ctx.strokeStyle = PAL.dim; ctx.setLineDash([3*r,3*r]); ctx.lineWidth=1*r;
+    ctx.beginPath(); ctx.moveTo(0,y(sc.thr)); ctx.lineTo(W,y(sc.thr)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // waveform (filled)
+  ctx.beginPath(); ctx.moveTo(x(0),H-padB);
+  for(let j=0;j<N;j++) ctx.lineTo(x(j), y(sc.samples[j]));
+  ctx.lineTo(x(N-1),H-padB); ctx.closePath();
+  ctx.fillStyle = 'rgba(63,114,164,.10)'; ctx.fill();
+  ctx.beginPath();
+  for(let j=0;j<N;j++){ const px=x(j),py=y(sc.samples[j]); j?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+  ctx.strokeStyle = PAL.tock; ctx.lineWidth = 1.4*r; ctx.stroke();
+
+  // markers: impulse + unlock
+  const drawMark = (j,color,label)=>{
+    const px = x(j);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5*r;
+    ctx.beginPath(); ctx.moveTo(px,padT-2*r); ctx.lineTo(px,H-padB); ctx.stroke();
+    ctx.fillStyle = color; ctx.font=(10*r)+'px ui-monospace,monospace';
+    ctx.fillText(label, px+3*r, padT+8*r);
+  };
+  drawMark(sc.impulseJ, PAL.ink, 'impulse');
+  if(sc.unlockJ>=0 && sc.unlockJ<N) drawMark(sc.unlockJ, PAL.tick, 'unlock');
+
+  const dtMs = ampDiag.dt*1000;
+  ui.scopeDt.textContent = dtMs>0 ? ('Δt '+dtMs.toFixed(2)+' ms') : '—';
+}
+
+// ----- Positional rosette ---------------------------------------------------
+function updatePositional(){
+  const map = latestByPosition();
+  const have = POSITIONS.filter(p => map[p] && isFinite(map[p].rate));
+  const c = ui.polar, r = dpr(c), W = c.width, H = c.height, ctx = c.getContext('2d');
+  ctx.clearRect(0,0,W,H); ctx.fillStyle = PAL.paper; ctx.fillRect(0,0,W,H);
+  const cx = W/2, cy = H/2 + 4*r, R = Math.min(W,H)*0.36;
+
+  // scale: ±max(6, peak abs rate) around 0 at the rim radius
+  let peak = 6;
+  for(const p of have) peak = Math.max(peak, Math.abs(map[p].rate));
+  peak = Math.ceil(peak/2)*2;
+
+  // rings
+  ctx.strokeStyle = PAL.grid; ctx.lineWidth = 1*r;
+  for(const frac of [0.34,0.67,1]){
+    ctx.beginPath();
+    for(let a=0;a<=6;a++){ const ang=-Math.PI/2 + a*Math.PI/3;
+      const x=cx+Math.cos(ang)*R*frac, y=cy+Math.sin(ang)*R*frac; a?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.closePath(); ctx.stroke();
+  }
+  // spokes + labels
+  ctx.fillStyle = PAL.mute; ctx.font=(10*r)+'px ui-monospace,monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  POSITIONS.forEach((p,i)=>{
+    const ang = -Math.PI/2 + i*Math.PI/3;
+    const x=cx+Math.cos(ang)*R, y=cy+Math.sin(ang)*R;
+    ctx.strokeStyle = PAL.grid; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+    const lx=cx+Math.cos(ang)*(R+13*r), ly=cy+Math.sin(ang)*(R+13*r);
+    ctx.fillStyle = map[p]?PAL.ink:PAL.dim; ctx.fillText(p, lx, ly);
+  });
+  // zero baseline ring at mid radius (rate=0 maps to mid)
+  const mid = R*0.55;
+  const rr = rate => mid + (rate/peak)*(R-mid);
+  ctx.strokeStyle = PAL.axis; ctx.lineWidth=1*r; ctx.beginPath();
+  for(let a=0;a<=6;a++){ const ang=-Math.PI/2 + a*Math.PI/3;
+    const x=cx+Math.cos(ang)*mid, y=cy+Math.sin(ang)*mid; a?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  ctx.closePath(); ctx.stroke();
+
+  if(have.length>=2){
+    // polygon of rates
+    ctx.beginPath();
+    have.concat(have[0]).forEach((p,idx)=>{
+      const i = POSITIONS.indexOf(p), ang=-Math.PI/2 + i*Math.PI/3, rad=rr(map[p].rate);
+      const x=cx+Math.cos(ang)*rad, y=cy+Math.sin(ang)*rad; idx?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = PAL.tickSoft; ctx.fill();
+    ctx.strokeStyle = PAL.tick; ctx.lineWidth=1.6*r; ctx.stroke();
+  }
+  // points
+  for(const p of have){
+    const i = POSITIONS.indexOf(p), ang=-Math.PI/2 + i*Math.PI/3, rad=rr(map[p].rate);
+    const x=cx+Math.cos(ang)*rad, y=cy+Math.sin(ang)*rad;
+    ctx.fillStyle = PAL.tock; ctx.beginPath(); ctx.arc(x,y,2.6*r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle=PAL.faint; ctx.font=(9*r)+'px ui-monospace,monospace';
+  ctx.fillText(`rim ±${peak} s/d`, 6*r, H-6*r);
+
+  // readouts
+  if(have.length>=2){
+    let best=have[0], worst=have[0];
+    for(const p of have){ if(map[p].rate>map[best].rate) best=p; if(map[p].rate<map[worst].rate) worst=p; }
+    const delta = map[best].rate - map[worst].rate;
+    ui.posDelta.textContent = delta.toFixed(1);
+    ui.posBest.textContent  = `${best} ${fmt(map[best].rate,1)}`;
+    ui.posWorst.textContent = `${worst} ${fmt(map[worst].rate,1)}`;
+  } else {
+    ui.posDelta.textContent='—'; ui.posBest.textContent='—'; ui.posWorst.textContent='—';
+  }
+}
+
+// ----- Isochronism scatter (rate vs amplitude) ------------------------------
+function drawIso(){
+  const c = ui.iso, r = dpr(c), W = c.width, H = c.height, ctx = c.getContext('2d');
+  ctx.clearRect(0,0,W,H); ctx.fillStyle = PAL.paper; ctx.fillRect(0,0,W,H);
+  const pts = sessionLog.filter(e => e.amp && isFinite(e.amp) && isFinite(e.rate))
+                        .map(e => ({a:e.amp, y:e.rate}));
+  const padL=30*r, padB=18*r, padT=8*r, padR=8*r;
+  const x0=padL, x1=W-padR, y0=padT, y1=H-padB;
+  // axes
+  ctx.strokeStyle=PAL.axis; ctx.lineWidth=1*r;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0,y1); ctx.lineTo(x1,y1); ctx.stroke();
+  ctx.fillStyle=PAL.faint; ctx.font=(9*r)+'px ui-monospace,monospace';
+  ctx.fillText('s/d', 3*r, y0+8*r); ctx.textAlign='right'; ctx.fillText('amp °', x1, H-5*r); ctx.textAlign='left';
+  ui.isoN.textContent = pts.length;
+  if(pts.length<2){ ui.isoSlope.textContent='—';
+    ctx.fillStyle=PAL.faint; ctx.textAlign='center';
+    ctx.fillText('log readings at differing amplitudes', (x0+x1)/2, (y0+y1)/2); ctx.textAlign='left'; return; }
+
+  let aMin=Infinity,aMax=-Infinity,yMin=Infinity,yMax=-Infinity;
+  for(const p of pts){ aMin=Math.min(aMin,p.a); aMax=Math.max(aMax,p.a);
+    yMin=Math.min(yMin,p.y); yMax=Math.max(yMax,p.y); }
+  if(aMax-aMin<5){ aMin-=5; aMax+=5; }
+  const yPad=Math.max(2,(yMax-yMin)*0.15); yMin-=yPad; yMax+=yPad;
+  const sx=a=>x0+((a-aMin)/(aMax-aMin))*(x1-x0);
+  const sy=v=>y1-((v-yMin)/(yMax-yMin))*(y1-y0);
+  // zero line
+  if(yMin<0&&yMax>0){ ctx.strokeStyle=PAL.grid2; ctx.setLineDash([3*r,3*r]);
+    ctx.beginPath(); ctx.moveTo(x0,sy(0)); ctx.lineTo(x1,sy(0)); ctx.stroke(); ctx.setLineDash([]); }
+  // least-squares fit rate = m·amp + b
+  let n=pts.length,Sa=0,Sy=0,Saa=0,Say=0;
+  for(const p of pts){ Sa+=p.a; Sy+=p.y; Saa+=p.a*p.a; Say+=p.a*p.y; }
+  const den=n*Saa-Sa*Sa; let m=0,b=Sy/n;
+  if(Math.abs(den)>1e-9){ m=(n*Say-Sa*Sy)/den; b=(Sy-m*Sa)/n; }
+  ctx.strokeStyle=PAL.tick; ctx.lineWidth=1.6*r; ctx.beginPath();
+  ctx.moveTo(sx(aMin), sy(m*aMin+b)); ctx.lineTo(sx(aMax), sy(m*aMax+b)); ctx.stroke();
+  // points
+  for(const p of pts){ ctx.fillStyle=PAL.tock;
+    ctx.beginPath(); ctx.arc(sx(p.a),sy(p.y),2.4*r,0,Math.PI*2); ctx.fill(); }
+  ui.isoSlope.textContent = (m*10).toFixed(1);
+}
+
+// ----- Lift-angle auto-calibration ------------------------------------------
+ui.calLiftBtn.addEventListener('click', ()=>{
+  const ref = parseFloat(ui.refAmp.value);
+  if(!(ref>=150 && ref<=330)){ toast('Reference amplitude must be 150–330°'); return; }
+  if(!lastInfo || !ampDiag.dt){ ui.calLiftOut.textContent='No live amplitude yet — let it settle first.'; return; }
+  const T_balance = 2*lastInfo.measHalf;
+  // A = lift/(2·sin(π·dt/T)) ⇒ lift = 2·A·sin(π·dt/T)
+  const lift = 2*ref*Math.sin(Math.PI*ampDiag.dt/T_balance);
+  if(!(lift>=20 && lift<=80)){ ui.calLiftOut.textContent=`Implied lift ${lift.toFixed(1)}° is out of range — check the reference.`; return; }
+  const old = parseFloat(ui.lift.value)||52;
+  ui.lift.value = lift.toFixed(1);
+  ui.calLiftOut.innerHTML = `Lift angle <b>${old.toFixed(1)}° → ${lift.toFixed(1)}°</b> so amplitude reads ${ref.toFixed(0)}° here.`;
+  toast(`Lift angle set to ${lift.toFixed(1)}°`);
+});
+
+// ----- Audible beat sonifier ------------------------------------------------
+// A small dedicated output AudioContext schedules two soft clicks per balance
+// period at the measured cadence and beat-error offset, so the asymmetry is
+// audible. Independent of the capture context.
+let sonCtx=null, sonTimer=null, sonNext=0, sonParity=0;
+ui.sonifyEnable.addEventListener('change', ()=>{ ui.sonifyEnable.checked ? sonifyStart() : sonifyStop(); });
+
+function sonifyStart(){
+  if(sonCtx) return;
+  if(!lastInfo){ toast('No measurement yet to sonify.'); ui.sonifyEnable.checked=false; return; }
+  try{ sonCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+  catch{ toast('Audio output unavailable'); ui.sonifyEnable.checked=false; return; }
+  sonNext = sonCtx.currentTime + 0.1; sonParity = 0;
+  sonTimer = setInterval(sonifySchedule, 60);
+}
+function sonifyStop(){
+  if(sonTimer){ clearInterval(sonTimer); sonTimer=null; }
+  if(sonCtx){ try{ sonCtx.close(); }catch{} sonCtx=null; }
+  if(ui.sonifyEnable.checked) ui.sonifyEnable.checked=false;
+}
+function sonifySchedule(){
+  if(!sonCtx || !lastInfo) return;
+  const half = lastInfo.measHalf || 0.125;
+  const beOff = (lastInfo.C_fit||0);            // odd/even offset (s) → tock shifted by this
+  const vol = (parseFloat(ui.sonVol.value)||0)/100 * 0.6;
+  const horizon = sonCtx.currentTime + 0.25;
+  while(sonNext < horizon){
+    // parity 0 = tick (higher), parity 1 = tock (lower, displaced by beat error)
+    const isTock = sonParity & 1;
+    const when = sonNext + (isTock ? beOff : 0);
+    sonClick(when, isTock?1500:2100, vol);
+    sonNext += half;
+    sonParity ^= 1;
+  }
+}
+function sonClick(when, freq, vol){
+  if(vol<=0) return;
+  const o = sonCtx.createOscillator(), g = sonCtx.createGain();
+  o.type='sine'; o.frequency.value=freq;
+  const t = Math.max(when, sonCtx.currentTime+0.001);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t+0.0008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+0.030);
+  o.connect(g).connect(sonCtx.destination);
+  o.start(t); o.stop(t+0.04);
+}
+
+// enable beta tool buttons once a session is live
+function setBetaLiveEnabled(on){ ui.calLiftBtn.disabled = !on; }
+
 
 // ============================================================================
 //  PWA: register service worker (if served from a real origin)
