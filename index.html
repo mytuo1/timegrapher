@@ -1,0 +1,1747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#0b0f14" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Timegrapher" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%230b0f14' stroke='%235dd6a4' stroke-width='3'/><line x1='32' y1='32' x2='32' y2='14' stroke='%235dd6a4' stroke-width='3' stroke-linecap='round'/><line x1='32' y1='32' x2='44' y2='38' stroke='%239ad8ff' stroke-width='2' stroke-linecap='round'/><circle cx='32' cy='32' r='2' fill='%235dd6a4'/></svg>" />
+<title>Timegrapher — precision watch rate analyzer</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#0f141c; --ink:#e8eef7; --mute:#7d8aa0;
+    --line:#1a2330; --line2:#243248;
+    --accent:#5dd6a4; --accent2:#9ad8ff; --warn:#f2b134; --bad:#ef5b5b;
+    --grid:#1a2330;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:radial-gradient(1200px 600px at 20% -10%, #15202d 0%, var(--bg) 60%) fixed;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Ubuntu,sans-serif;-webkit-font-smoothing:antialiased}
+  body{display:flex;flex-direction:column;min-height:100dvh}
+  header{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-bottom:1px solid var(--line);background:rgba(11,15,20,.85);backdrop-filter:saturate(140%) blur(8px);position:sticky;top:0;z-index:5}
+  header .logo{width:28px;height:28px;flex:none}
+  header h1{font-size:1rem;margin:0;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  header h1 small{color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0;margin-left:.5rem}
+  header .grow{flex:1}
+  .pill{font-size:.7rem;padding:.22rem .55rem;border-radius:999px;background:#1a2433;color:var(--mute);border:1px solid #233247;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
+  .pill .led{width:.5rem;height:.5rem;border-radius:50%;background:#445;box-shadow:0 0 0 0 rgba(0,0,0,0)}
+  .pill.live{background:linear-gradient(180deg,#1f3a2a,#16291f);border-color:#2a5a40;color:#cdf3df}
+  .pill.live .led{background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
+
+  main{flex:1;display:grid;grid-template-columns:1fr;gap:.85rem;padding:.85rem;max-width:1280px;width:100%;margin:0 auto}
+  @media(min-width:980px){ main{grid-template-columns:380px 1fr} }
+
+  .card{background:linear-gradient(180deg,var(--panel),#0e141d);border:1px solid var(--line);border-radius:16px;padding:1rem;display:flex;flex-direction:column;gap:.85rem;box-shadow:var(--shadow)}
+  .card h2{font-size:.72rem;margin:0 0 -.25rem;color:var(--mute);text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+  .row{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+  .row > *{min-width:0}
+  label{font-size:.75rem;color:var(--mute);display:flex;flex-direction:column;gap:.3rem;flex:1 1 130px}
+  select,input[type=number],input[type=text]{background:#0a1018;border:1px solid #1f2a3a;color:var(--ink);padding:.5rem .6rem;border-radius:9px;font:inherit;width:100%;outline:none;transition:border-color .15s}
+  select:focus,input:focus{border-color:#3a5577}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  button{appearance:none;border:1px solid #2a3a55;background:#172234;color:var(--ink);padding:.6rem .9rem;border-radius:10px;font:inherit;font-weight:500;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:.4rem;justify-content:center}
+  button:hover{background:#1d2c44;transform:translateY(-1px)}
+  button:active{transform:none}
+  button.primary{background:linear-gradient(180deg,#5dd6a4,#3fbd87);color:#062014;border-color:transparent;font-weight:700;box-shadow:0 4px 14px rgba(93,214,164,.25)}
+  button.primary:hover{filter:brightness(1.06)}
+  button.danger{background:linear-gradient(180deg,#ef5b5b,#c9433f);color:#fff;border-color:transparent;font-weight:600}
+  button.ghost{background:transparent;border-color:#2a3a55}
+  button[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem}
+  .metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:.7rem .55rem;text-align:center;position:relative;overflow:hidden}
+  .metric::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.3}
+  .metric .k{font-size:.7rem;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+  .metric .v{font-size:1.55rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;margin-top:.15rem}
+  .metric .u{font-size:.7rem;color:var(--mute);margin-top:.05rem}
+  .metric.big .v{font-size:2rem}
+  .metric.ok .v{color:var(--accent)}
+  .metric.warn .v{color:var(--warn)}
+  .metric.bad .v{color:var(--bad)}
+
+  .trace-wrap{position:relative;background:#0a0f15;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  .trace-wrap .ovl{position:absolute;left:8px;top:6px;font-size:.7rem;color:var(--mute);pointer-events:none;letter-spacing:.05em}
+  .trace-wrap .ovl.r{left:auto;right:8px;text-align:right}
+
+  .legend{display:flex;gap:1rem;font-size:.72rem;color:var(--mute);flex-wrap:wrap;padding:.1rem .25rem}
+  .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;vertical-align:baseline;margin-right:.3rem;transform:translateY(1px)}
+
+  .level{height:8px;background:#0a1018;border-radius:5px;overflow:hidden;border:1px solid #1f2a3a;position:relative}
+  .level > div{height:100%;background:linear-gradient(90deg,var(--accent) 0%,var(--accent) 60%,var(--warn) 80%,var(--bad) 100%);width:0%;transition:width .05s linear}
+  .lvlrow{display:flex;justify-content:space-between;font-size:.7rem;color:var(--mute);margin-bottom:.25rem;font-variant-numeric:tabular-nums}
+
+  details{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem}
+  details summary{cursor:pointer;color:var(--ink);font-size:.78rem;font-weight:500;list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary::before{content:"▸ ";color:var(--mute);font-size:.75rem;margin-right:.15rem;display:inline-block;transition:transform .15s}
+  details[open] summary::before{transform:rotate(90deg)}
+  details ul{margin:.5rem 0 0 .9rem;padding:0;color:var(--mute);font-size:.78rem;line-height:1.55}
+  details ul li{margin:.15rem 0}
+
+  footer{padding:.7rem 1rem;color:var(--mute);font-size:.72rem;text-align:center;border-top:1px solid var(--line)}
+
+  /* Position picker */
+  .positions{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
+  .positions button{padding:.5rem .25rem;font-size:.85rem;font-weight:700;border-radius:9px;flex-direction:column;line-height:1.1}
+  .positions button small{display:block;font-size:.65rem;font-weight:400;color:var(--mute);margin-top:.15rem}
+  .positions button.sel small{color:#cfe6ff}
+  .positions button.sel{background:linear-gradient(180deg,#2c4e6f,#1d3a55);border-color:#3a5e85;color:#cfe6ff}
+
+  /* Session log table */
+  .logtable{width:100%;border-collapse:collapse;font-size:.78rem;font-variant-numeric:tabular-nums}
+  .logtable th,.logtable td{padding:.4rem .35rem;text-align:right;border-bottom:1px solid var(--line)}
+  .logtable th{color:var(--mute);font-weight:500;text-align:right;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em}
+  .logtable th:first-child,.logtable td:first-child{text-align:left}
+  .logtable tr:last-child td{border-bottom:none}
+  .logtable td.del{text-align:center;width:1.5rem;color:var(--mute);cursor:pointer}
+  .logtable td.del:hover{color:var(--bad)}
+  .empty{color:var(--mute);font-size:.78rem;text-align:center;padding:1rem;font-style:italic}
+
+  kbd{background:#0a1018;border:1px solid #1f2a3a;border-bottom-width:2px;border-radius:4px;padding:0 .35rem;font-size:.7rem}
+
+  /* Calibration test result panel */
+  .cal-result{border:1px solid var(--line);border-radius:10px;padding:.7rem .8rem;background:var(--panel2);font-size:.8rem;line-height:1.5}
+  .cal-result .verdict{font-weight:700;font-size:.9rem;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem}
+  .cal-result.pass{border-color:#2a5a40;background:linear-gradient(180deg,#152a20,#0f1d17)}
+  .cal-result.pass .verdict{color:var(--accent)}
+  .cal-result.warn{border-color:#5a4a20;background:linear-gradient(180deg,#2a230f,#1d1a0c)}
+  .cal-result.warn .verdict{color:var(--warn)}
+  .cal-result.fail{border-color:#5a2a2a;background:linear-gradient(180deg,#2a1515,#1d0f0f)}
+  .cal-result.fail .verdict{color:var(--bad)}
+  .cal-result .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.3rem .8rem;color:var(--mute);font-size:.72rem;font-variant-numeric:tabular-nums;margin:.35rem 0}
+  .cal-result .stats b{color:var(--ink);font-weight:500}
+  .cal-result ul{margin:.3rem 0 0 1rem;padding:0;color:var(--mute);font-size:.74rem;line-height:1.45}
+  .cal-result.busy{border-color:#3a5577;background:linear-gradient(180deg,#152030,#0f1820)}
+  .cal-result.busy .verdict{color:var(--hi)}
+
+  .toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%) translateY(20px);background:#172234;border:1px solid #2a3a55;color:var(--ink);padding:.6rem 1rem;border-radius:10px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:10}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* spinner used while initialising */
+  .spinner{display:inline-block;width:.7rem;height:.7rem;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="32" cy="32" r="28" fill="none" stroke="#5dd6a4" stroke-width="3"/>
+    <line x1="32" y1="32" x2="32" y2="14" stroke="#5dd6a4" stroke-width="3" stroke-linecap="round"/>
+    <line x1="32" y1="32" x2="44" y2="38" stroke="#9ad8ff" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="32" cy="32" r="2" fill="#5dd6a4"/>
+  </svg>
+  <h1>Timegrapher <small>precision watch rate analyzer</small></h1>
+  <span class="grow"></span>
+  <span id="uptime" class="pill" title="Session runtime"><span style="font-variant-numeric:tabular-nums" id="uptimeText">0s</span></span>
+  <span id="status" class="pill"><span class="led"></span><span id="statusText">idle</span></span>
+</header>
+
+<main>
+  <!-- ============== LEFT COLUMN: CONTROLS ================= -->
+  <section class="card" aria-label="controls">
+    <h2>Capture</h2>
+    <div class="row">
+      <button id="startBtn" class="primary">▶ Start</button>
+      <button id="stopBtn" class="danger" disabled>■ Stop</button>
+      <button id="resetBtn" class="ghost" disabled>↺ Reset</button>
+    </div>
+
+    <div class="lvlrow"><span>Input level</span><span id="lvlTxt">–</span></div>
+    <div class="level"><div id="lvlBar"></div></div>
+
+    <h2 style="margin-top:.25rem">Watch</h2>
+    <label style="flex-basis:100%">Movement preset
+      <select id="preset"></select>
+    </label>
+    <div class="row">
+      <label>Beat rate (BPH)
+        <select id="bph">
+          <option value="auto" selected>Auto-detect</option>
+          <option value="18000">18 000 (vintage)</option>
+          <option value="19800">19 800</option>
+          <option value="21600">21 600</option>
+          <option value="25200">25 200</option>
+          <option value="28800">28 800 (modern)</option>
+          <option value="36000">36 000 (hi-beat)</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+      <label id="customBphLabel" style="display:none">Custom
+        <input type="number" id="customBph" min="3600" max="72000" step="1" value="28800"/>
+      </label>
+    </div>
+    <div class="row">
+      <label>Lift angle (°)
+        <input type="number" id="lift" min="30" max="80" step="0.5" value="52"/>
+      </label>
+      <label>Window (s)
+        <input type="number" id="window" min="5" max="120" step="1" value="30"/>
+      </label>
+    </div>
+
+    <h2 style="margin-top:.25rem">Position <span style="text-transform:none;letter-spacing:0;color:var(--mute);font-weight:400">— orientation of the watch, regardless of mic placement</span></h2>
+    <div class="positions" id="positions">
+      <button data-pos="DU" class="sel" title="Dial Up — watch lying flat, dial facing the ceiling">DU<br><small>dial ↑</small></button>
+      <button data-pos="DD"               title="Dial Down — watch lying flat, dial facing the floor">DD<br><small>dial ↓</small></button>
+      <button data-pos="CD"               title="Crown Down (12 Up) — watch standing, 12 o'clock pointing up, crown at the bottom">CD<br><small>12 ↑</small></button>
+      <button data-pos="CU"               title="Crown Up (6 Up) — watch standing, 6 o'clock pointing up, crown at the top">CU<br><small>6 ↑</small></button>
+      <button data-pos="CL"               title="Crown Left (3 Up) — watch lying on its side, 3 o'clock pointing up, crown faces left">CL<br><small>3 ↑</small></button>
+      <button data-pos="CR"               title="Crown Right (9 Up) — watch lying on its side, 9 o'clock pointing up, crown faces right">CR<br><small>9 ↑</small></button>
+    </div>
+    <p style="margin:.1rem 0 0;font-size:.72rem;color:var(--mute);line-height:1.4">
+      Six-position testing follows COSC / Master Chronometer convention. Log each
+      position separately to characterise the movement's positional variation.
+    </p>
+
+    <h2 style="margin-top:.25rem">Microphone &amp; sensitivity</h2>
+    <label>Mic profile
+      <select id="micProfile">
+        <option value="">— manual / custom —</option>
+        <option value="phone" selected>Phone (built-in mic)</option>
+        <option value="phone_ext">Phone + external mic (USB-C / Lightning)</option>
+        <option value="laptop">Laptop (built-in mic)</option>
+        <option value="headset">Headset / earbud mic</option>
+        <option value="contact">Piezo / contact pickup</option>
+        <option value="studio">Studio / condenser mic</option>
+      </select>
+    </label>
+    <div class="row">
+      <label>Input gain
+        <input type="range" id="gain" min="0" max="40" step="1" value="0"/>
+        <span id="gainTxt" style="font-size:.7rem;color:var(--mute);font-variant-numeric:tabular-nums">0 dB</span>
+      </label>
+      <label>Threshold σ
+        <input type="range" id="sens" min="2" max="9" step="0.1" value="4.5"/>
+        <span id="sensTxt" style="font-size:.7rem;color:var(--mute);font-variant-numeric:tabular-nums">4.5</span>
+      </label>
+    </div>
+    <div class="row">
+      <label>Band-pass (Hz)
+        <select id="band">
+          <option value="800,10000" selected>800 – 10 000 (default)</option>
+          <option value="2000,15000">2 000 – 15 000 (bright tick)</option>
+          <option value="500,6000">500 – 6 000 (muffled)</option>
+          <option value="1500,8000">1 500 – 8 000 (narrow)</option>
+          <option value="3000,12000">3 000 – 12 000 (sharp)</option>
+          <option value="200,5000">200 – 5 000 (piezo / contact)</option>
+        </select>
+      </label>
+      <label style="flex-direction:row;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink);flex:1 1 100px;margin-top:1.1rem">
+        <input type="checkbox" id="preEmph" checked style="width:auto"/> Pre-emphasis (boost transients)
+      </label>
+    </div>
+    <div class="row">
+      <button id="calibrateBtn" class="ghost" disabled>🎯 Run calibration test (5s)</button>
+    </div>
+    <div id="calResult" class="cal-result" style="display:none"></div>
+
+    <details>
+      <summary>Tips for best accuracy</summary>
+      <ul>
+        <li>A quiet room is essential — the tick is on the order of <kbd>−40 dBFS</kbd>.</li>
+        <li>Hold the watch case firmly against the microphone (a phone's bottom mic works surprisingly well; a contact / piezo pickup is best).</li>
+        <li>Let the watch settle for ~10 s after handling, then capture for 30 – 60 s.</li>
+        <li>Test each position separately and log it — most movements vary 5–15 s/day between positions.</li>
+        <li>If the trace is noisy: narrow the band-pass, raise sensitivity σ, or move closer to the mic.</li>
+        <li>Auto-detect snaps to the nearest standard BPH; set it manually if your watch is exotic.</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Long-running session (days)</summary>
+      <div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.5rem">
+        <label style="flex-direction:row;align-items:center;gap:.5rem;font-size:.8rem;color:var(--ink)">
+          <input type="checkbox" id="wakeLock" style="width:auto"/> Keep screen awake (Wake Lock)
+        </label>
+        <div class="row">
+          <label>Auto-log every
+            <select id="autoLog">
+              <option value="0" selected>off</option>
+              <option value="60">1 min</option>
+              <option value="300">5 min</option>
+              <option value="900">15 min</option>
+              <option value="3600">1 hour</option>
+              <option value="21600">6 hours</option>
+            </select>
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:.5rem;font-size:.8rem;color:var(--ink);flex:1">
+            <input type="checkbox" id="persistLog" checked style="width:auto"/> Save log to this browser
+          </label>
+        </div>
+        <p style="margin:0;font-size:.74rem;color:var(--mute);line-height:1.45">
+          For multi-day testing, keep the device plugged in, enable Wake Lock,
+          and set Auto-log to 5–15 min. The <b>lifetime</b> metrics below use
+          every detected beat since "Start" — they grow more precise the longer
+          you run.
+        </p>
+      </div>
+    </details>
+
+  </section>
+  <section class="card" aria-label="results">
+    <div class="metrics">
+      <div class="metric big" id="rateCell"><div class="k">Rate</div><div class="v" id="rate">—</div><div class="u">s / day</div></div>
+      <div class="metric big" id="beCell"><div class="k">Beat error</div><div class="v" id="be">—</div><div class="u">ms</div></div>
+      <div class="metric big" id="ampCell"><div class="k">Amplitude</div><div class="v" id="amp">—</div><div class="u">degrees</div></div>
+      <div class="metric"><div class="k">Detected BPH</div><div class="v" id="bphOut">—</div><div class="u">beats / hour</div></div>
+      <div class="metric"><div class="k">Beats / win</div><div class="v" id="nticks">0</div><div class="u">samples</div></div>
+      <div class="metric"><div class="k">Quality</div><div class="v" id="conf">—</div><div class="u">/ 100</div></div>
+    </div>
+
+    <div class="trace-wrap" style="aspect-ratio: 16/8.5;min-height:260px">
+      <canvas id="trace"></canvas>
+      <div class="ovl">paper-tape · ±20 ms</div>
+      <div class="ovl r">newer ↓</div>
+    </div>
+
+    <div class="trace-wrap" style="height:96px">
+      <canvas id="env"></canvas>
+      <div class="ovl">envelope · ~4 s</div>
+      <div class="ovl r"><span class="dot" style="background:#5dd6a4"></span>tick <span class="dot" style="background:#9ad8ff"></span>tock</div>
+    </div>
+
+    <h2>Lifetime <span style="text-transform:none;letter-spacing:0;color:var(--mute);font-weight:400">— whole session, since "Start"</span></h2>
+    <div class="metrics">
+      <div class="metric" id="ltRateCell"><div class="k">Rate</div><div class="v" id="ltRate">—</div><div class="u">s / day</div></div>
+      <div class="metric" id="ltBeCell"><div class="k">Beat error</div><div class="v" id="ltBe">—</div><div class="u">ms</div></div>
+      <div class="metric"><div class="k">Total beats</div><div class="v" id="ltN">0</div><div class="u">since start</div></div>
+      <div class="metric"><div class="k">Rate ± 1σ</div><div class="v" id="ltSE">—</div><div class="u">s / day</div></div>
+    </div>
+    <div class="trace-wrap" style="height:120px">
+      <canvas id="trend"></canvas>
+      <div class="ovl">rate history</div>
+      <div class="ovl r"><span id="trendSpan">—</span></div>
+    </div>
+
+    <div class="row">
+      <button id="logBtn" disabled>＋ Log this reading</button>
+      <button id="exportBtn" class="ghost" disabled>⇩ Export CSV</button>
+      <button id="clearLogBtn" class="ghost" disabled>Clear log</button>
+    </div>
+
+    <div>
+      <h2>Session log</h2>
+      <div id="logWrap">
+        <div class="empty">No readings logged yet.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  All processing is done locally in your browser — no audio leaves your device. ·
+  <a href="README.md" style="color:var(--mute)">about &amp; algorithm</a>
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+/* ============================================================================
+ * TIMEGRAPHER — precision watch rate analyzer
+ * ----------------------------------------------------------------------------
+ * Implements the same core measurements as a Witschi / Weishi machine:
+ *
+ *   RATE          — least-squares linear fit of beat-times vs. beat-index.
+ *                   Slope = measured half-period; rate (s/day) = (T_exp - T_meas)/T_exp * 86400.
+ *
+ *   BEAT ERROR    — odd/even offset coefficient from the same regression
+ *                   (the real asymmetry between tick & tock intervals).
+ *                   BE_ms = |coef| * 1000 / 2.
+ *
+ *   AMPLITUDE     — from intra-beat sub-pulse spacing.
+ *                   Each beat has three impulses (unlock, impulse, drop).
+ *                   We measure Δt between the unlocking transient and the
+ *                   dominant drop peak. By SHM of the balance:
+ *                       θ(t) = A · sin(2π t / T_balance)
+ *                       balance crosses ±(lift/2) at t = ±(T_balance/2π)·arcsin(lift/(2A))
+ *                       Δt    = (T_balance/π) · arcsin(lift/(2A))
+ *                   ⇒   A    = lift / (2 · sin(π·Δt / T_balance))
+ *                   where T_balance = 2·T_halfbeat (balance beats twice per cycle).
+ *
+ * DSP pipeline (all client-side, AudioWorklet → main):
+ *   raw → 4-stage Butterworth-style band-pass biquad cascade
+ *       → rectify (|x|)
+ *       → fast envelope (one-pole LP, τ ≈ 0.3 ms) for sub-pulse timing
+ *       → slow envelope (one-pole LP, τ ≈ 3   ms) for beat onset detection
+ *   adaptive threshold = EMA-median + σ · EMA-MAD on slow envelope
+ *   peak picking with refractory period = 0.6 × expected half-period
+ *   sub-sample timing via parabolic interpolation around peak
+ * ============================================================================ */
+
+const $ = id => document.getElementById(id);
+const ui = {
+  start:$('startBtn'), stop:$('stopBtn'), reset:$('resetBtn'),
+  bph:$('bph'), customBph:$('customBph'), customLabel:$('customBphLabel'),
+  lift:$('lift'), window:$('window'), sens:$('sens'), band:$('band'),
+  status:$('status'), statusText:$('statusText'),
+  rate:$('rate'), be:$('be'), amp:$('amp'),
+  rateCell:$('rateCell'), beCell:$('beCell'), ampCell:$('ampCell'),
+  bphOut:$('bphOut'), nticks:$('nticks'), conf:$('conf'),
+  lvlBar:$('lvlBar'), lvlTxt:$('lvlTxt'),
+  trace:$('trace'), env:$('env'),
+  positions:$('positions'),
+  logBtn:$('logBtn'), exportBtn:$('exportBtn'), clearLogBtn:$('clearLogBtn'),
+  logWrap:$('logWrap'),
+  toast:$('toast'),
+  preset:$('preset'),
+  uptimeText:$('uptimeText'),
+  wakeLock:$('wakeLock'), autoLog:$('autoLog'), persistLog:$('persistLog'),
+  ltRate:$('ltRate'), ltBe:$('ltBe'), ltN:$('ltN'), ltSE:$('ltSE'),
+  ltRateCell:$('ltRateCell'), ltBeCell:$('ltBeCell'),
+  trend:$('trend'), trendSpan:$('trendSpan'),
+  micProfile:$('micProfile'), gain:$('gain'), gainTxt:$('gainTxt'),
+  sensTxt:$('sensTxt'), preEmph:$('preEmph'),
+  calibrateBtn:$('calibrateBtn'), calResult:$('calResult'),
+};
+ui.bph.addEventListener('change',()=>{ui.customLabel.style.display=ui.bph.value==='custom'?'':'none';});
+
+const STANDARD_BPH = [18000,19800,21600,25200,28800,36000];
+
+// ============================================================================
+//  MOVEMENT PRESETS  (BPH and lift-angle taken from manufacturer specs /
+//  Witschi reference tables; co-axial Omegas and a few oddballs intentionally
+//  use non-standard lift angles. Edit `lift` if your reference disagrees.)
+// ============================================================================
+const PRESETS = [
+  { brand: 'ETA — Swiss workhorse', items: [
+    { name:'ETA 2824-2 (workhorse)',           bph:28800, lift:50 },
+    { name:'ETA 2836-2 (day-date)',            bph:28800, lift:50 },
+    { name:'ETA 2892-A2 (thin)',               bph:28800, lift:50 },
+    { name:'ETA 2801-2 (manual)',              bph:28800, lift:50 },
+    { name:'ETA 2671 (small ladies)',          bph:28800, lift:50 },
+    { name:'ETA 7750 (Valjoux chrono)',        bph:28800, lift:50 },
+    { name:'ETA 7753 / 7754',                  bph:28800, lift:50 },
+    { name:'ETA 6497-1 (Unitas pocket)',       bph:18000, lift:49 },
+    { name:'ETA 6497-2',                       bph:21600, lift:49 },
+    { name:'ETA 6498-1',                       bph:18000, lift:49 },
+    { name:'ETA 6498-2',                       bph:21600, lift:49 },
+  ]},
+  { brand: 'Sellita — Swiss ETA-compatible', items: [
+    { name:'Sellita SW200-1 (2824 equiv.)',    bph:28800, lift:50 },
+    { name:'Sellita SW220-1 (day-date)',       bph:28800, lift:50 },
+    { name:'Sellita SW300-1 (2892 equiv.)',    bph:28800, lift:50 },
+    { name:'Sellita SW500 (7750 equiv.)',      bph:28800, lift:50 },
+    { name:'Sellita SW510 (chrono)',           bph:28800, lift:50 },
+    { name:'Sellita SW260-1 (small sec.)',     bph:28800, lift:50 },
+  ]},
+  { brand: 'Soprod / STP', items: [
+    { name:'Soprod A10 / M100',                bph:28800, lift:50 },
+    { name:'STP 1-11',                         bph:28800, lift:50 },
+  ]},
+  { brand: 'Miyota / Citizen — Japan', items: [
+    { name:'Miyota 8215 (mod favourite)',      bph:21600, lift:52 },
+    { name:'Miyota 8205',                      bph:21600, lift:52 },
+    { name:'Miyota 8217 (day-date)',           bph:21600, lift:52 },
+    { name:'Miyota 9015 (thin auto)',          bph:28800, lift:52 },
+    { name:'Miyota 9039 (no-date 9015)',       bph:28800, lift:52 },
+    { name:'Miyota 6T51 (chrono)',             bph:28800, lift:52 },
+    { name:'Citizen 0950 / La Joux-Perret G100', bph:28800, lift:50 },
+  ]},
+  { brand: 'Seiko / SII — most modded', items: [
+    { name:'Seiko 7S26 / 7S36',                bph:21600, lift:53 },
+    { name:'Seiko NH35A / 4R35 (mod king)',    bph:21600, lift:53 },
+    { name:'Seiko NH36A / 4R36 (day-date)',    bph:21600, lift:53 },
+    { name:'Seiko NH38A / 4R38 (open-heart)',  bph:21600, lift:53 },
+    { name:'Seiko 6R15',                       bph:21600, lift:53 },
+    { name:'Seiko 6R35 (70 h reserve)',        bph:21600, lift:53 },
+    { name:'Seiko 6L35 (thin auto)',           bph:28800, lift:53 },
+    { name:'Seiko 8L35 (Marinemaster)',        bph:28800, lift:53 },
+    { name:'Seiko 8L55 (hi-beat)',             bph:36000, lift:51 },
+    { name:'Grand Seiko 9S55',                 bph:28800, lift:51 },
+    { name:'Grand Seiko 9S65',                 bph:28800, lift:51 },
+    { name:'Grand Seiko 9S85 (hi-beat)',       bph:36000, lift:51 },
+    { name:'Grand Seiko 9SA5 (80 h hi-beat)',  bph:36000, lift:52 },
+  ]},
+  { brand: 'Rolex', items: [
+    { name:'Rolex 3135 (Submariner pre-2020)', bph:28800, lift:50 },
+    { name:'Rolex 3185 / 3186 (GMT-Master II)',bph:28800, lift:50 },
+    { name:'Rolex 3187 (Explorer II)',         bph:28800, lift:50 },
+    { name:'Rolex 3235 (Chronergy)',           bph:28800, lift:50 },
+    { name:'Rolex 3255 (Day-Date 40)',         bph:28800, lift:50 },
+    { name:'Rolex 3285 (GMT-Master II 2018+)', bph:28800, lift:50 },
+    { name:'Rolex 4030 (Daytona, Zenith base)',bph:28800, lift:50 },
+    { name:'Rolex 4130 (in-house Daytona)',    bph:28800, lift:50 },
+    { name:'Rolex 4131 (Daytona 2023)',        bph:28800, lift:50 },
+    { name:'Rolex 2236 (Lady)',                bph:28800, lift:50 },
+  ]},
+  { brand: 'Omega', items: [
+    { name:'Omega 861 / 1861 (Speedmaster Pro)',bph:21600, lift:52 },
+    { name:'Omega 3861 (Master Speedmaster)',  bph:21600, lift:50 },
+    { name:'Omega 1120 (Seamaster auto)',      bph:28800, lift:52 },
+    { name:'Omega 2500 (Co-Axial)',            bph:25200, lift:38 },
+    { name:'Omega 8500 (Co-Axial)',            bph:25200, lift:38 },
+    { name:'Omega 8800 (Master Co-Axial)',     bph:25200, lift:38 },
+    { name:'Omega 8900 (Master Co-Axial)',     bph:25200, lift:38 },
+    { name:'Omega 9300 / 9301 (chrono)',       bph:28800, lift:38 },
+    { name:'Omega 3220 (Speedy Reduced)',      bph:28800, lift:52 },
+  ]},
+  { brand: 'Tudor / Kenissi', items: [
+    { name:'Tudor MT5602 / MT5612 (Black Bay)',bph:28800, lift:50 },
+    { name:'Tudor MT5621 (GMT)',               bph:28800, lift:50 },
+    { name:'Tudor MT5641 (BB 36)',             bph:28800, lift:50 },
+    { name:'Tudor MT5813 (chrono, 7753 base)', bph:28800, lift:50 },
+    { name:'Tudor MT5400 (BB 58, smaller)',    bph:28800, lift:50 },
+  ]},
+  { brand: 'Patek Philippe', items: [
+    { name:'Patek 215 PS (manual)',            bph:21600, lift:44 },
+    { name:'Patek 240 (microrotor)',           bph:21600, lift:44 },
+    { name:'Patek 324 S C',                    bph:28800, lift:51 },
+    { name:'Patek 26-330 S C',                 bph:28800, lift:51 },
+    { name:'Patek CH 28-520 (chrono)',         bph:28800, lift:51 },
+  ]},
+  { brand: 'A. Lange & Söhne', items: [
+    { name:'Lange L901 (Lange 1)',             bph:21600, lift:48 },
+    { name:'Lange L121.1 (Lange 1, 2nd gen)',  bph:21600, lift:48 },
+    { name:'Lange L951 (Datograph)',           bph:18000, lift:48 },
+    { name:'Lange L043 / L086',                bph:21600, lift:48 },
+  ]},
+  { brand: 'Audemars Piguet', items: [
+    { name:'AP 3120 (Royal Oak)',              bph:21600, lift:52 },
+    { name:'AP 3126 (RO chrono)',              bph:21600, lift:52 },
+    { name:'AP 4302 (new gen, 70 h)',          bph:28800, lift:52 },
+    { name:'AP 2385 (Frédéric Piguet 1185)',   bph:21600, lift:52 },
+  ]},
+  { brand: 'Jaeger-LeCoultre', items: [
+    { name:'JLC 899 / 899A',                   bph:28800, lift:44 },
+    { name:'JLC 822 (Reverso)',                bph:21600, lift:48 },
+    { name:'JLC 920 (ultra-thin auto)',        bph:19800, lift:48 },
+    { name:'JLC 751 (chrono)',                 bph:28800, lift:44 },
+  ]},
+  { brand: 'Vacheron Constantin', items: [
+    { name:'Vacheron 1400 (manual)',           bph:28800, lift:45 },
+    { name:'Vacheron 2450 (auto)',             bph:28800, lift:52 },
+    { name:'Vacheron 4400 (manual)',           bph:28800, lift:50 },
+    { name:'Vacheron 5100 (chrono)',           bph:28800, lift:50 },
+  ]},
+  { brand: 'IWC', items: [
+    { name:'IWC 32110 (in-house, 72 h)',       bph:28800, lift:50 },
+    { name:'IWC 52010 (Pellaton, 7-day)',      bph:28800, lift:50 },
+    { name:'IWC 82000 / 82200',                bph:28800, lift:50 },
+    { name:'IWC 89000 chrono',                 bph:28800, lift:50 },
+    { name:'IWC 51111 (vintage Pellaton)',     bph:21600, lift:44 },
+  ]},
+  { brand: 'Zenith', items: [
+    { name:'Zenith El Primero 400/410',        bph:36000, lift:50 },
+    { name:'Zenith El Primero 4069',           bph:36000, lift:50 },
+    { name:'Zenith Elite 670',                 bph:28800, lift:52 },
+    { name:'Zenith Defy 9004 (high-freq)',     bph:36000, lift:50 },
+  ]},
+  { brand: 'Glashütte Original / NOMOS', items: [
+    { name:'GO Calibre 36',                    bph:28800, lift:50 },
+    { name:'GO Calibre 100-14',                bph:28800, lift:50 },
+    { name:'NOMOS Alpha',                      bph:21600, lift:53 },
+    { name:'NOMOS DUW 3001 (neomatik)',        bph:21600, lift:52 },
+    { name:'NOMOS DUW 6101 (date)',            bph:21600, lift:52 },
+  ]},
+  { brand: 'Independents / others', items: [
+    { name:'Frederique Constant FC-710',       bph:28800, lift:50 },
+    { name:'Maurice Lacroix ML-115/ML-100',    bph:28800, lift:50 },
+    { name:'Cartier 1904-PS MC',               bph:28800, lift:52 },
+    { name:'Panerai P.900 / P.9000',           bph:28800, lift:52 },
+    { name:'Breitling B01 (in-house chrono)',  bph:28800, lift:52 },
+    { name:'Bulova 262 kHz "Precisionist"',    bph:28800, lift:50 }, // listed as quartz; placeholder
+  ]},
+  { brand: 'Seagull — China (popular mod base)', items: [
+    { name:'Seagull ST16 (2824 clone)',        bph:28800, lift:50 },
+    { name:'Seagull ST21 (8215 clone)',        bph:21600, lift:52 },
+    { name:'Seagull ST25 (2836 clone)',        bph:28800, lift:50 },
+    { name:'Seagull ST36 (6497 clone)',        bph:21600, lift:50 },
+    { name:'Seagull ST19 (Venus 175 chrono)',  bph:21600, lift:50 },
+    { name:'Seagull ST18 (tourbillon)',        bph:21600, lift:50 },
+  ]},
+  { brand: 'Hangzhou — China', items: [
+    { name:'Hangzhou 5000A',                   bph:28800, lift:52 },
+    { name:'Hangzhou 6300',                    bph:28800, lift:52 },
+  ]},
+  { brand: 'Vostok / Raketa — Russia', items: [
+    { name:'Vostok 2416B (Amphibia)',          bph:19800, lift:42 },
+    { name:'Vostok 2415 (Amphibia, no date)',  bph:19800, lift:42 },
+    { name:'Vostok 2431 (24h Komandirskie)',   bph:19800, lift:42 },
+    { name:'Vostok 2409 (manual)',             bph:19800, lift:42 },
+    { name:'Raketa 2609',                      bph:18000, lift:42 },
+  ]},
+  { brand: 'Vintage chronograph calibres', items: [
+    { name:'Valjoux 72 (vintage Daytona base)',bph:18000, lift:50 },
+    { name:'Valjoux 7733',                     bph:18000, lift:50 },
+    { name:'Lemania 1873 / 1861 (Speedy)',     bph:21600, lift:52 },
+    { name:'Lemania 5100',                     bph:28800, lift:50 },
+    { name:'Venus 178',                        bph:18000, lift:50 },
+    { name:'Landeron 248',                     bph:18000, lift:50 },
+  ]},
+];
+
+// ----- populate preset dropdown -----
+(function buildPresetSelect(){
+  const sel = ui.preset;
+  const dflt = document.createElement('option');
+  dflt.value=''; dflt.textContent='— manual / not specified —'; sel.appendChild(dflt);
+  for(const grp of PRESETS){
+    const og = document.createElement('optgroup'); og.label = grp.brand;
+    for(const it of grp.items){
+      const o = document.createElement('option');
+      o.value = JSON.stringify({b:it.bph, l:it.lift});
+      o.textContent = `${it.name}  ·  ${it.bph} bph / ${it.lift}°`;
+      o.dataset.bph = it.bph; o.dataset.lift = it.lift; o.dataset.name = it.name;
+      og.appendChild(o);
+    }
+    sel.appendChild(og);
+  }
+})();
+ui.preset.addEventListener('change', () => {
+  if(!ui.preset.value) return;
+  const { b, l } = JSON.parse(ui.preset.value);
+  if(STANDARD_BPH.includes(b)){
+    ui.bph.value = String(b); ui.customLabel.style.display = 'none';
+  } else {
+    ui.bph.value = 'custom'; ui.customLabel.style.display = '';
+    ui.customBph.value = b;
+  }
+  ui.lift.value = l;
+  toast('Preset loaded: ' + ui.preset.selectedOptions[0].dataset.name);
+});
+
+// ----- Microphone profiles --------------------------------------------------
+// Each profile is a sensible combination of band-pass, software gain (dB),
+// detection sensitivity, and pre-emphasis suited to a class of microphones.
+const MIC_PROFILES = {
+  phone:     { band:'800,10000', gain: 0, sens:4.5, preEmph:true,  hint:'Phone bottom mic against case-back works best.' },
+  phone_ext: { band:'1000,12000',gain: 6, sens:4.0, preEmph:true,  hint:'External mic — point capsule at the case.' },
+  laptop:    { band:'600,8000',  gain:12, sens:5.0, preEmph:true,  hint:'Laptop mics are noisy — use a quiet room.' },
+  headset:   { band:'800,8000',  gain: 6, sens:5.0, preEmph:true,  hint:'Headset/earbud mic — press case lightly against the capsule.' },
+  contact:   { band:'200,5000',  gain: 0, sens:3.5, preEmph:false, hint:'Piezo / contact pickup — strong signal, low threshold OK.' },
+  studio:    { band:'1500,12000',gain: 0, sens:3.5, preEmph:true,  hint:'Studio condenser — natural, high SNR; tight band-pass helps.' },
+};
+ui.micProfile.addEventListener('change', applyMicProfile);
+function applyMicProfile(){
+  const p = MIC_PROFILES[ui.micProfile.value]; if(!p) return;
+  ui.band.value = p.band;
+  ui.gain.value = p.gain; ui.gainTxt.textContent = p.gain+' dB';
+  ui.sens.value = p.sens; ui.sensTxt.textContent = (+p.sens).toFixed(1);
+  ui.preEmph.checked = p.preEmph;
+  // re-build filters on the fly if running
+  if(audioCtx){ rebuildDsp(); }
+  toast(p.hint, 2400);
+}
+ui.gain.addEventListener('input', ()=>{ ui.gainTxt.textContent = ui.gain.value+' dB'; });
+ui.sens.addEventListener('input', ()=>{ ui.sensTxt.textContent = (+ui.sens.value).toFixed(1); });
+ui.band.addEventListener('change', ()=>{ if(audioCtx) rebuildDsp(); });
+ui.preEmph.addEventListener('change', ()=>{ if(audioCtx) rebuildDsp(); });
+
+let preEmphState = { x1: 0 };
+const PRE_EMPH_ALPHA = 0.96;        // y[n] = x[n] - α·x[n-1]
+
+function gainLinear(){ return Math.pow(10, (+ui.gain.value)/20); }
+
+function rebuildDsp(){
+  const [f1,f2] = ui.band.value.split(',').map(Number);
+  bpFilters = bpCascade(sampleRate, f1, f2, 4);
+  lpFast = onePoleLP(sampleRate, 500);
+  lpSlow = onePoleLP(sampleRate, 60);
+  preEmphState.x1 = 0;
+  runMed = 0; runMad = 0;
+  toast('DSP rebuilt — '+f1+'–'+f2+' Hz, '+ui.gain.value+' dB');
+}
+
+// ----- Calibration test -----------------------------------------------------
+// A pre-flight check that verifies the system can actually hear the watch.
+//   Phase 1 (1.5 s): measure the noise floor and auto-pick a threshold σ.
+//   Phase 2 (3.5 s): count detected beats vs. the count expected for the
+//                    configured BPH, and measure tick SNR.
+// Then issues a clear PASS / WARN / FAIL verdict with concrete suggestions.
+let calibrating = false;
+ui.calibrateBtn.addEventListener('click', runCalibrationTest);
+
+async function runCalibrationTest(){
+  if(!audioCtx || calibrating) return;
+  calibrating = true;
+  ui.calibrateBtn.disabled = true;
+  const r = ui.calResult;
+
+  // ----- Phase 1: noise floor -----
+  showCal('busy', '🎧 Listening for noise…',
+    'Hold the watch still about a finger-width from the mic. Don\'t touch anything.', []);
+  const noiseSamples = [];
+  let id = setInterval(()=>{ noiseSamples.push(runMed + runMad); }, 25);
+  await sleep(1500);
+  clearInterval(id);
+  if(!audioCtx){ calibrating=false; ui.calibrateBtn.disabled=false; return; }
+
+  let noise = median(noiseSamples) || 1e-9;
+  const noiseDisp = mad(noiseSamples, noise)*1.4826 || 1e-9;
+  const noiseDb = 20*Math.log10(noise + 1e-9);
+  // pick sigma based on dispersion / median ratio
+  const sigma = Math.max(3, Math.min(8.5, 4.5 + 4*Math.min(1, (noiseDisp/Math.max(noise,1e-9))*2)));
+  ui.sens.value = sigma.toFixed(1); ui.sensTxt.textContent = sigma.toFixed(1);
+
+  // ----- Phase 2: hearing test -----
+  showCal('busy', '👂 Listening for ticks…',
+    `Place the watch against the mic now. Threshold σ set to ${sigma.toFixed(1)}.`, []);
+  const startCount = beats.length;
+  const startT = audioCtx.currentTime;
+  const beatAmps = [];
+  // capture beats over ~3.5 s
+  const watchId = setInterval(()=>{
+    // copy newly arrived beat amplitudes
+    for(let i=startCount; i<beats.length; i++) beatAmps[i-startCount] = beats[i].amp;
+  }, 50);
+  await sleep(3500);
+  clearInterval(watchId);
+  if(!audioCtx){ calibrating=false; ui.calibrateBtn.disabled=false; return; }
+
+  const elapsed = audioCtx.currentTime - startT;
+  const detected = beats.length - startCount;
+  const bph = activeBPH() || 28800;
+  const expected = elapsed * bph / 3600;
+  const ratio = detected / Math.max(1, expected);
+
+  // compute SNR from the (just-detected) beats vs the noise floor measured earlier
+  const amps = beatAmps.filter(v => v>0);
+  const meanAmp = amps.length ? mean(amps) : 0;
+  const ampMed = amps.length ? median(amps) : 0;
+  const snr = noise > 0 ? meanAmp / noise : 0;
+  const snrDb = snr>0 ? 20*Math.log10(snr) : -Infinity;
+
+  // jitter of detected intervals (rough quality indicator)
+  let jitterMs = NaN;
+  if(detected >= 4){
+    const dts = [];
+    for(let i=startCount+1; i<beats.length; i++) dts.push(beats[i].t - beats[i-1].t);
+    const expHalf = 3600/bph;
+    const inliers = dts.filter(d => Math.abs(d-expHalf) < 0.25*expHalf);
+    if(inliers.length>=3) jitterMs = std(inliers)*1000;
+  }
+
+  // ----- verdict -----
+  let kind = 'pass', title = '✓ Ready to measure',
+      tips = [];
+
+  if(detected < 4){
+    kind = 'fail'; title = '✗ No ticks detected';
+    tips.push('Press the watch firmly against the microphone (case-back flat).');
+    tips.push('Increase **Input gain** by 10–15 dB.');
+    tips.push('Try the **Piezo / contact pickup** band-pass if you\'re using one.');
+    tips.push('Verify the watch is actually running.');
+  } else if(ratio < 0.5){
+    kind = 'fail'; title = '✗ Most ticks missed';
+    tips.push(`Only ${detected} of ~${expected.toFixed(0)} expected beats detected (${(ratio*100).toFixed(0)} %).`);
+    tips.push('Lower **Threshold σ** by 1–2 (currently '+sigma.toFixed(1)+').');
+    tips.push('Increase **Input gain** by 6–12 dB.');
+    tips.push('Move to a quieter room.');
+  } else if(ratio > 1.6){
+    kind = 'fail'; title = '✗ Too many false detections';
+    tips.push(`Detected ${detected} beats vs. ~${expected.toFixed(0)} expected (${(ratio*100).toFixed(0)} %).`);
+    tips.push('Raise **Threshold σ** by 1–2.');
+    tips.push('Tighten the **band-pass** (try 1500–8000 Hz).');
+    tips.push('Verify **BPH** is correct (try **Auto-detect** or pick the right movement preset).');
+  } else if(ratio < 0.85 || ratio > 1.15){
+    kind = 'warn'; title = '⚠ Acceptable, but tune for best results';
+    tips.push(`Detected ${detected} of ~${expected.toFixed(0)} expected (${(ratio*100).toFixed(0)} %).`);
+    if(ratio<0.85) tips.push('Slightly lower σ or raise input gain.');
+    else           tips.push('Slightly raise σ or tighten the band-pass.');
+  } else if(snrDb < 12){
+    kind = 'warn'; title = '⚠ Marginal signal-to-noise';
+    tips.push(`Tick SNR ≈ ${snrDb.toFixed(0)} dB. Readings will work but be slightly noisy.`);
+    tips.push('Press the watch closer to the mic, or quieten the room.');
+  } else {
+    kind = 'pass'; title = '✓ Ready to measure — looks great';
+    tips.push('Hit **Start** (already running) and let the watch settle for ~10 s.');
+    if(isFinite(jitterMs) && jitterMs < 1.5) tips.push(`Detector jitter ${jitterMs.toFixed(2)} ms — excellent.`);
+  }
+
+  showCal(kind, title, null, tips, {
+    detected, expected, ratio, snrDb, noiseDb, sigma, jitterMs
+  });
+
+  calibrating = false;
+  ui.calibrateBtn.disabled = false;
+}
+
+function showCal(kind, title, subtitle, tips, stats){
+  const r = ui.calResult;
+  r.style.display = '';
+  r.className = 'cal-result ' + kind;
+  let html = `<div class="verdict">${kind==='busy'?'<span class="spinner"></span>':''}${title}</div>`;
+  if(subtitle) html += `<div style="color:var(--mute);font-size:.75rem;margin-bottom:.25rem">${subtitle}</div>`;
+  if(stats){
+    html += `<div class="stats">
+      <span>Detected: <b>${stats.detected}</b> / ~${stats.expected.toFixed(0)} expected</span>
+      <span>Coverage: <b>${(stats.ratio*100).toFixed(0)} %</b></span>
+      <span>Tick SNR: <b>${isFinite(stats.snrDb)?stats.snrDb.toFixed(0)+' dB':'—'}</b></span>
+      <span>Noise floor: <b>${stats.noiseDb.toFixed(0)} dBFS</b></span>
+      <span>σ set to: <b>${stats.sigma.toFixed(1)}</b></span>
+      <span>Jitter: <b>${isFinite(stats.jitterMs)?stats.jitterMs.toFixed(2)+' ms':'—'}</b></span>
+    </div>`;
+  }
+  if(tips && tips.length){
+    html += '<ul>' + tips.map(t => '<li>'+
+      t.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')+'</li>').join('') + '</ul>';
+  }
+  r.innerHTML = html;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let position = 'DU';
+ui.positions.addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  ui.positions.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); position = b.dataset.pos;
+});
+
+function toast(msg, ms=1800){ ui.toast.textContent=msg; ui.toast.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>ui.toast.classList.remove('show'),ms); }
+
+// ============================================================================
+//  STATE
+// ============================================================================
+let audioCtx=null, mediaStream=null, srcNode=null, workletNode=null, procNode=null;
+let sampleRate = 48000;
+
+// Visual envelope ring (downsampled to 2 kHz, last 4 s)
+const ENV_SR = 2000, ENV_SECONDS_VIEW = 4;
+let envBuf = new Float32Array(ENV_SR * ENV_SECONDS_VIEW);
+let envWrite = 0;
+
+// High-resolution fast-envelope ring (full sample rate, last 0.6 s) for sub-pulse
+const FAST_SECONDS = 0.6;
+let fastBuf = null;        // Float32Array, allocated once sample rate known
+let fastWrite = 0;
+
+// Detected beats
+let beats = [];            // {t: seconds since session start, amp: peak value, parity: 0/1}
+let sessionStart = 0;
+let globalSampleCounter = 0;
+
+// DSP state
+let bpFilters=null, lpFast=null, lpSlow=null;
+let runMed=0, runMad=0;
+const TAU_MED = 1.5, TAU_MAD = 0.5;
+
+// Peak search state
+let ps = { active:false, lastPeakSample:-1e12, maxV:0, maxIdx:0,
+           preV:0, postV:0, awaitPost:false, underCount:0 };
+
+// Latest analysis (so logger can save it)
+let lastInfo = null;
+
+// Session log (persisted across reloads if enabled)
+let sessionLog = [];
+
+// ----- Long-running session accumulators -----------------------------------
+// These hold least-squares sums over EVERY beat detected since "Start" (not
+// just the current window).  Memory is O(1) regardless of session length.
+// Indices grow with `lifeBeatIdx`; parity is `idx & 1`.
+const life = {
+  active:false,
+  startedAt:0,           // wall-clock ms
+  beatCount:0,           // total beats since start
+  lastBeatTime:0,        // session seconds of most recent beat
+  lastBeatIdx:0,         // global beat index of most recent beat
+  expHalf:0,             // expected half period for the BPH at start
+  // running sums for 3-col regression [1, k, p]·[a,b,c]ᵀ
+  S00:0,S01:0,S02:0,S11:0,S12:0,S22:0,
+  T0:0, T1:0, T2:0,
+  // for residual variance
+  SR:0, SR2:0, nRes:0,
+};
+// rate-history samples: 1 entry per minute (kept for last 14 days)
+let rateHistory = [];   // {t:wallClockSec, rate, be, amp, ltRate}
+const RATE_HISTORY_MAX = 14*24*60;  // ~14 days @ 1/min
+let lastRateSampleAt = 0;
+
+// Wake lock (kept renewed on visibility change)
+let wakeLockObj = null;
+async function acquireWakeLock(){
+  if(!('wakeLock' in navigator)){ toast('Wake Lock unsupported in this browser'); ui.wakeLock.checked=false; return; }
+  try{
+    wakeLockObj = await navigator.wakeLock.request('screen');
+    wakeLockObj.addEventListener('release', ()=>{ wakeLockObj=null; });
+  }catch(e){ toast('Wake Lock denied: '+e.message); ui.wakeLock.checked=false; }
+}
+async function releaseWakeLock(){
+  if(wakeLockObj){ try{ await wakeLockObj.release(); }catch{} wakeLockObj=null; }
+}
+ui.wakeLock.addEventListener('change', ()=>{
+  if(ui.wakeLock.checked) acquireWakeLock(); else releaseWakeLock();
+});
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && ui.wakeLock.checked && !wakeLockObj) acquireWakeLock();
+});
+
+// Auto-log timer
+let autoLogTimer = null;
+ui.autoLog.addEventListener('change', setupAutoLog);
+function setupAutoLog(){
+  if(autoLogTimer){ clearInterval(autoLogTimer); autoLogTimer=null; }
+  const s = parseInt(ui.autoLog.value,10);
+  if(s>0 && life.active){
+    autoLogTimer = setInterval(()=>{ if(lastInfo) logReading('auto'); }, s*1000);
+  }
+}
+
+// Persistence
+const LS_KEY = 'timegrapher_log_v1';
+ui.persistLog.addEventListener('change', persistLogNow);
+function persistLogNow(){
+  try{
+    if(ui.persistLog.checked) localStorage.setItem(LS_KEY, JSON.stringify(sessionLog));
+    else localStorage.removeItem(LS_KEY);
+  }catch{}
+}
+function loadPersistedLog(){
+  try{
+    const s = localStorage.getItem(LS_KEY);
+    if(s){ sessionLog = JSON.parse(s)||[]; renderLog(); }
+  }catch{}
+}
+
+// ============================================================================
+//  MATH HELPERS
+// ============================================================================
+const median = a => { if(!a.length) return 0; const x=Float64Array.from(a); x.sort(); const n=x.length;
+  return n%2 ? x[(n-1)>>1] : 0.5*(x[n/2-1]+x[n/2]); };
+const mad = (a,m) => { if(!a.length) return 0; const d=new Float64Array(a.length);
+  for(let i=0;i<a.length;i++) d[i]=Math.abs(a[i]-m); return median(d); };
+const mean = a => { if(!a.length) return 0; let s=0; for(const x of a) s+=x; return s/a.length; };
+const std  = a => { if(a.length<2) return 0; const m=mean(a); let s=0; for(const x of a) s+=(x-m)*(x-m);
+  return Math.sqrt(s/(a.length-1)); };
+function robustMean(a, k=2.5){ if(a.length<3) return mean(a);
+  const m=median(a), d=mad(a,m)*1.4826||1e-12, keep=[];
+  for(const x of a) if(Math.abs(x-m)/d < k) keep.push(x);
+  return keep.length? mean(keep): m; }
+
+// ----- Lifetime accumulator: add one beat to the running session sums -----
+function lifeAddBeat(tSec){
+  if(!life.expHalf) return;
+  let k;
+  if(life.beatCount === 0){
+    k = 0;
+    life.lastBeatTime = tSec;
+    life.lastBeatIdx = 0;
+  } else {
+    const dt = tSec - life.lastBeatTime;
+    // map dt to integer beat count (handles missed beats)
+    const dk = Math.max(1, Math.round(dt/life.expHalf));
+    k = life.lastBeatIdx + dk;
+    // sanity: reject grossly off intervals
+    if(Math.abs(dt - dk*life.expHalf) > 0.30*life.expHalf){
+      life.lastBeatTime = tSec; life.lastBeatIdx = k; return;
+    }
+    life.lastBeatTime = tSec; life.lastBeatIdx = k;
+  }
+  const p = k & 1;
+  life.S00 += 1;
+  life.S01 += k;        life.S11 += k*k;
+  life.S02 += p;        life.S12 += k*p;     life.S22 += p*p;
+  life.T0  += tSec;     life.T1  += k*tSec;  life.T2  += p*tSec;
+  life.beatCount++;
+}
+function lifeReset(){
+  Object.assign(life, { active:false, startedAt:0, beatCount:0, lastBeatTime:0,
+    lastBeatIdx:0, expHalf:0,
+    S00:0,S01:0,S02:0,S11:0,S12:0,S22:0, T0:0,T1:0,T2:0, SR:0,SR2:0,nRes:0 });
+}
+// Solve lifetime regression and update lifetime metrics
+function lifeAnalyze(){
+  if(life.beatCount < 30){
+    ui.ltRate.textContent='—'; ui.ltBe.textContent='—'; ui.ltSE.textContent='—';
+    ui.ltN.textContent = life.beatCount;
+    return null;
+  }
+  const sol = solve3(
+    [[life.S00,life.S01,life.S02],[life.S01,life.S11,life.S12],[life.S02,life.S12,life.S22]],
+    [life.T0, life.T1, life.T2]);
+  if(!sol){ ui.ltN.textContent = life.beatCount; return null; }
+  const [A,B,C] = sol;                              // B = lifetime half-period
+  const measHalf = B;
+  const rateSpd = (life.expHalf - measHalf)/life.expHalf * 86400;
+  const beMs    = Math.abs(C)*1000/2;
+  // Approximate slope SE from elapsed span & residual stats; we don't store all
+  // residuals so use a coarse proxy: SE_b ≈ σ_res / (kStd · √N)
+  // kStd ≈ N/√12  for ~uniformly-spaced k → kStd ≈ life.beatCount/3.46
+  const kStd = Math.max(1, life.beatCount/3.464);
+  // residual variance estimate (running): we accumulate SR2 in finalize step
+  // we maintain a rough on-line residual estimate by sampling jitterMs from window
+  const jit = (lastInfo && lastInfo.jitterMs) ? lastInfo.jitterMs/1000 : 0.002;
+  const slopeSE = jit / (kStd * Math.sqrt(life.beatCount));
+  const seSpd = slopeSE/life.expHalf * 86400;
+
+  ui.ltRate.textContent = (rateSpd>=0?'+':'') + rateSpd.toFixed(2);
+  ui.ltBe.textContent   = beMs.toFixed(3);
+  ui.ltN.textContent    = life.beatCount.toLocaleString();
+  ui.ltSE.textContent   = '±' + seSpd.toFixed(2);
+  setCellClass(ui.ltRateCell, Math.abs(rateSpd)<10?'ok':Math.abs(rateSpd)<30?'warn':'bad');
+  setCellClass(ui.ltBeCell,   beMs<0.5?'ok':beMs<1.0?'warn':'bad');
+  return { rateSpd, beMs, seSpd };
+}
+
+// Uptime ticker (every 1 s)
+setInterval(()=>{
+  if(!life.active){ ui.uptimeText.textContent='0s'; return; }
+  const sec = Math.floor((Date.now() - life.startedAt)/1000);
+  ui.uptimeText.textContent = fmtDuration(sec);
+},1000);
+function fmtDuration(s){
+  const d = Math.floor(s/86400); s%=86400;
+  const h = Math.floor(s/3600);  s%=3600;
+  const m = Math.floor(s/60);    const ss = s%60;
+  if(d) return `${d}d ${h}h ${m}m`;
+  if(h) return `${h}h ${m}m ${ss}s`;
+  if(m) return `${m}m ${ss}s`;
+  return `${ss}s`;
+}
+
+// ============================================================================
+//  DSP — biquad band-pass cascade (RBJ cookbook) + one-pole LP
+// ============================================================================
+function biquadBP(fs,f0,Q){ const w=2*Math.PI*f0/fs, cw=Math.cos(w), sw=Math.sin(w), al=sw/(2*Q);
+  const b0=al,b1=0,b2=-al,a0=1+al,a1=-2*cw,a2=1-al;
+  return { b0:b0/a0,b1:b1/a0,b2:b2/a0,A1:a1/a0,A2:a2/a0,x1:0,x2:0,y1:0,y2:0,
+    step(x){const y=this.b0*x+this.b1*this.x1+this.b2*this.x2-this.A1*this.y1-this.A2*this.y2;
+      this.x2=this.x1;this.x1=x;this.y2=this.y1;this.y1=y;return y;}}; }
+function bpCascade(fs,f1,f2,order=4){ const f0=Math.sqrt(f1*f2), Q=f0/Math.max(1,(f2-f1));
+  const s=[]; for(let i=0;i<order;i++) s.push(biquadBP(fs,f0,Q));
+  return { step(x){ for(const k of s) x=k.step(x); return x; } }; }
+function onePoleLP(fs,fc){ const a=Math.exp(-2*Math.PI*fc/fs);
+  return { y:0, step(v){ this.y=(1-a)*v + a*this.y; return this.y; } }; }
+
+// ============================================================================
+//  AUDIO START / STOP
+// ============================================================================
+const WORKLET_CODE = `
+class TgTap extends AudioWorkletProcessor{
+  constructor(){ super(); this.buf=new Float32Array(2048); this.w=0; }
+  process(inputs){
+    const inp=inputs[0]; if(!inp||!inp[0]) return true;
+    const ch=inp[0];
+    for(let i=0;i<ch.length;i++){
+      this.buf[this.w++]=ch[i];
+      if(this.w>=this.buf.length){ this.port.postMessage(this.buf.slice(0)); this.w=0; }
+    }
+    return true;
+  }
+}
+registerProcessor('tg-tap', TgTap);
+`;
+
+async function start(){
+  try{
+    ui.statusText.textContent = 'requesting mic…';
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false,
+              channelCount:1, sampleRate:48000 }
+    });
+  }catch(e){
+    ui.statusText.textContent='mic denied';
+    alert('Microphone access is required.\n\n'+e.message); return;
+  }
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:48000,latencyHint:'interactive'});
+  sampleRate = audioCtx.sampleRate;
+
+  const [f1,f2] = ui.band.value.split(',').map(Number);
+  bpFilters = bpCascade(sampleRate, f1, f2, 4);
+  lpFast = onePoleLP(sampleRate, 500);   // τ ≈ 0.3 ms
+  lpSlow = onePoleLP(sampleRate, 60);    // τ ≈ 2.6 ms
+  runMed = 0; runMad = 0;
+  beats = []; envBuf.fill(0); envWrite = 0;
+  fastBuf = new Float32Array(Math.floor(sampleRate * FAST_SECONDS));
+  fastWrite = 0;
+  sessionStart = audioCtx.currentTime;
+  globalSampleCounter = 0;
+  ps = { active:false, lastPeakSample:-1e12, maxV:0, maxIdx:0, preV:0, postV:0, awaitPost:false, underCount:0 };
+
+  // initialise lifetime accumulators
+  lifeReset();
+  const initBPH = activeBPH() || 28800;
+  life.expHalf  = 3600/initBPH;
+  life.startedAt = Date.now();
+  life.active = true;
+  rateHistory = []; lastRateSampleAt = 0;
+
+  if(ui.wakeLock.checked) acquireWakeLock();
+  setupAutoLog();
+
+  srcNode = audioCtx.createMediaStreamSource(mediaStream);
+
+  let usedWorklet=false;
+  try{
+    const url = URL.createObjectURL(new Blob([WORKLET_CODE],{type:'application/javascript'}));
+    await audioCtx.audioWorklet.addModule(url); URL.revokeObjectURL(url);
+    workletNode = new AudioWorkletNode(audioCtx,'tg-tap',{numberOfInputs:1,numberOfOutputs:0,channelCount:1});
+    workletNode.port.onmessage = e => processChunk(e.data);
+    srcNode.connect(workletNode);
+    usedWorklet = true;
+  }catch(e){
+    console.warn('AudioWorklet unavailable, falling back to ScriptProcessor', e);
+    procNode = audioCtx.createScriptProcessor(2048,1,1);
+    procNode.onaudioprocess = e => processChunk(e.inputBuffer.getChannelData(0));
+    srcNode.connect(procNode); procNode.connect(audioCtx.destination);
+  }
+
+  ui.start.disabled=true; ui.stop.disabled=false; ui.reset.disabled=false;
+  ui.logBtn.disabled=false; ui.calibrateBtn.disabled=false;
+  ui.status.classList.add('live'); ui.statusText.textContent = usedWorklet?'listening · worklet':'listening · sp';
+  requestAnimationFrame(draw);
+}
+
+function stop(){
+  ui.start.disabled=false; ui.stop.disabled=true;
+  ui.statusText.textContent='stopped'; ui.status.classList.remove('live');
+  ui.logBtn.disabled=true; ui.calibrateBtn.disabled=true;
+  life.active = false;
+  releaseWakeLock();
+  if(autoLogTimer){ clearInterval(autoLogTimer); autoLogTimer=null; }
+  try{srcNode&&srcNode.disconnect()}catch{}
+  try{workletNode&&workletNode.disconnect()}catch{}
+  try{procNode&&procNode.disconnect()}catch{}
+  try{mediaStream&&mediaStream.getTracks().forEach(t=>t.stop())}catch{}
+  try{audioCtx&&audioCtx.close()}catch{}
+  audioCtx=null; srcNode=null; workletNode=null; procNode=null; mediaStream=null;
+}
+function reset(){
+  beats=[]; envBuf.fill(0); envWrite=0; if(fastBuf) fastBuf.fill(0); fastWrite=0;
+  runMed=0; runMad=0;
+  if(audioCtx) sessionStart = audioCtx.currentTime;
+  globalSampleCounter = 0;
+  ps = { active:false, lastPeakSample:-1e12, maxV:0, maxIdx:0, preV:0, postV:0, awaitPost:false, underCount:0 };
+  lifeReset();
+  const initBPH = activeBPH() || 28800;
+  life.expHalf  = 3600/initBPH;
+  life.startedAt = Date.now();
+  life.active = !!audioCtx;
+  rateHistory = []; lastRateSampleAt = 0;
+}
+
+ui.start.onclick=start; ui.stop.onclick=stop; ui.reset.onclick=reset;
+
+// ============================================================================
+//  PER-CHUNK PROCESSING
+// ============================================================================
+function activeBPH(){
+  const v=ui.bph.value;
+  if(v==='auto') return _detectedBPH || 0;
+  if(v==='custom') return parseFloat(ui.customBph.value)||28800;
+  return parseFloat(v);
+}
+
+function processChunk(ch){
+  const N=ch.length;
+  let sumSq=0;
+  const dsStride = Math.max(1, Math.round(sampleRate/ENV_SR));
+  const alphaMed = 1 - Math.exp(-1/(sampleRate*TAU_MED));
+  const alphaMad = 1 - Math.exp(-1/(sampleRate*TAU_MAD));
+  const sens = parseFloat(ui.sens.value);
+  const bph = activeBPH() || 28800;
+  const expHalf = 3600/bph;                    // seconds between successive beats
+  const refractory = Math.floor(sampleRate * expHalf * 0.6);
+  const commitDelay = Math.max(8, Math.floor(sampleRate*expHalf*0.04)); // wait after fall to commit
+  const g  = gainLinear();
+  const preEmphOn = ui.preEmph.checked;
+
+  for(let i=0;i<N;i++){
+    let x = ch[i]*g;                            // 1) software input gain
+    if(preEmphOn){                              // 2) pre-emphasis: y[n] = x[n] - α·x[n-1]
+      const xp = x - PRE_EMPH_ALPHA*preEmphState.x1;
+      preEmphState.x1 = x;
+      x = xp;
+    }
+    sumSq += x*x;
+    const y = bpFilters.step(x);
+    const a = Math.abs(y);                     // rectified
+    const eFast = lpFast.step(a);              // fast envelope (sub-pulse)
+    const eSlow = lpSlow.step(eFast);          // slow envelope (beat onset)
+
+    // fast envelope ring buffer
+    fastBuf[fastWrite] = eFast;
+    fastWrite = (fastWrite+1) % fastBuf.length;
+
+    // display envelope (downsample)
+    if(((globalSampleCounter + i) % dsStride) === 0){
+      envBuf[envWrite] = eFast;
+      envWrite = (envWrite+1) % envBuf.length;
+    }
+
+    // adaptive stats on slow envelope
+    runMed = (1-alphaMed)*runMed + alphaMed*eSlow;
+    const dev = Math.abs(eSlow - runMed);
+    runMad = (1-alphaMad)*runMad + alphaMad*dev;
+
+    const thr = runMed + sens*(runMad + 1e-12);
+
+    const absIdx = globalSampleCounter + i;
+
+    if(!ps.active){
+      if(eSlow > thr && (absIdx - ps.lastPeakSample) > refractory){
+        ps.active = true; ps.maxV = eSlow; ps.maxIdx = absIdx;
+        ps.preV = ps._prev||eSlow; ps.postV=0; ps.awaitPost=false; ps.underCount=0;
+      }
+    } else {
+      if(eSlow > ps.maxV){
+        ps.maxV = eSlow; ps.maxIdx = absIdx;
+        ps.preV = ps._prev||eSlow; ps.awaitPost=true; ps.postV=0;
+      } else if(ps.awaitPost && ps.postV===0 && absIdx === ps.maxIdx + 1){
+        ps.postV = eSlow;
+      }
+      if(eSlow < thr*0.4){
+        ps.underCount++;
+        if(ps.underCount >= commitDelay){
+          // parabolic interp
+          const a=ps.preV, b=ps.maxV, c=ps.postV||b;
+          let off=0; const den=(a-2*b+c);
+          if(Math.abs(den)>1e-18) off=0.5*(a-c)/den;
+          if(!(off>-1 && off<1)) off=0;
+          const tSec = (ps.maxIdx + off)/sampleRate - sessionStart;
+          beats.push({ t:tSec, amp:Math.sqrt(Math.max(0,b)), idx:ps.maxIdx, parity:beats.length%2 });
+          lifeAddBeat(tSec);
+          ps.lastPeakSample = ps.maxIdx;
+          ps.active=false; ps.maxV=0; ps.underCount=0;
+        }
+      }
+    }
+    ps._prev = eSlow;
+  }
+  globalSampleCounter += N;
+
+  // input level meter
+  const rms = Math.sqrt(sumSq/N);
+  const dB = 20*Math.log10(rms+1e-9);
+  const pct = Math.max(0,Math.min(100,(dB+60)*100/60));
+  ui.lvlBar.style.width = pct.toFixed(0)+'%';
+  ui.lvlTxt.textContent = dB.toFixed(1)+' dBFS';
+
+  // trim beats to window
+  const winSec = parseFloat(ui.window.value)||30;
+  const now = audioCtx.currentTime - sessionStart;
+  while(beats.length && (now - beats[0].t) > winSec) beats.shift();
+}
+
+// ============================================================================
+//  ANALYSIS — linear-regression rate, true beat error, amplitude
+// ============================================================================
+let _detectedBPH = 0;
+
+function analyze(){
+  const n = beats.length;
+  ui.nticks.textContent = n;
+
+  if(n < 8){ lastInfo=null; clearReadouts(); return null; }
+
+  // raw intervals
+  const dt = new Float64Array(n-1);
+  for(let i=1;i<n;i++) dt[i-1] = beats[i].t - beats[i-1].t;
+  const dtMed = median(dt);
+
+  // ---- choose BPH ----
+  let chosenBPH;
+  const uv = ui.bph.value;
+  if(uv==='auto'){
+    const cand = 3600/dtMed;
+    chosenBPH = STANDARD_BPH.reduce((p,c)=>Math.abs(c-cand)<Math.abs(p-cand)?c:p, STANDARD_BPH[0]);
+    _detectedBPH = chosenBPH;
+  } else if(uv==='custom') chosenBPH = parseFloat(ui.customBph.value)||28800;
+  else chosenBPH = parseFloat(uv);
+  const expHalf = 3600/chosenBPH;
+
+  // ---- inlier mask: beats whose preceding interval is within ±25 % of expected ----
+  // Determine global beat indices via interval-counting (handles dropouts)
+  const beatIndex = new Int32Array(n); beatIndex[0]=0;
+  for(let i=1;i<n;i++){
+    const d = beats[i].t - beats[i-1].t;
+    const k = Math.max(1, Math.round(d/expHalf));
+    beatIndex[i] = beatIndex[i-1] + k;
+  }
+  const inlier = new Uint8Array(n); inlier[0]=1;
+  for(let i=1;i<n;i++){
+    const d = beats[i].t - beats[i-1].t;
+    const k = Math.round(d/expHalf);
+    inlier[i] = (k>=1 && Math.abs(d - k*expHalf) < 0.25*expHalf) ? 1 : 0;
+  }
+  // count inliers
+  let nIn=0; for(let i=0;i<n;i++) if(inlier[i]) nIn++;
+  if(nIn < 6){ lastInfo=null; clearReadouts(); ui.bphOut.textContent=chosenBPH.toFixed(0); return null; }
+
+  // ---- linear-regression fit: t_i = a + b·k_i + p_i·c
+  // where k_i = beatIndex[i], p_i = parity (k_i mod 2), b ≈ expHalf, c = beat-error coefficient
+  // Solve normal equations of 3-column design [1, k, p].
+  let S00=0,S01=0,S02=0,S11=0,S12=0,S22=0, T0=0,T1=0,T2=0;
+  for(let i=0;i<n;i++){
+    if(!inlier[i]) continue;
+    const k=beatIndex[i], p=k&1, ti=beats[i].t;
+    S00+=1;   S01+=k;   S02+=p;
+              S11+=k*k; S12+=k*p;
+                        S22+=p*p;
+    T0+=ti; T1+=k*ti; T2+=p*ti;
+  }
+  // 3x3 symmetric solve
+  const M = [[S00,S01,S02],[S01,S11,S12],[S02,S12,S22]];
+  const B = [T0,T1,T2];
+  const sol = solve3(M,B);
+  if(!sol){ lastInfo=null; clearReadouts(); return null; }
+  const [a_fit, b_fit, c_fit] = sol;
+
+  // residuals & robust refit (1 round of outlier rejection)
+  let res = [];
+  for(let i=0;i<n;i++){
+    if(!inlier[i]) continue;
+    const k=beatIndex[i], p=k&1;
+    const pred = a_fit + b_fit*k + c_fit*p;
+    res.push(beats[i].t - pred);
+  }
+  const rmed=median(res), rmad=mad(res,rmed)*1.4826||1e-9;
+  // mark outliers (>3·MAD) as non-inlier and refit
+  let removed=0;
+  let j=0;
+  for(let i=0;i<n;i++){
+    if(!inlier[i]) continue;
+    const k=beatIndex[i], p=k&1;
+    const pred = a_fit + b_fit*k + c_fit*p;
+    if(Math.abs(beats[i].t - pred - rmed) > 3*rmad){ inlier[i]=0; removed++; }
+    j++;
+  }
+  // refit if we removed any
+  let A_fit=a_fit,B_fit=b_fit,C_fit=c_fit;
+  if(removed>0){
+    S00=S01=S02=S11=S12=S22=T0=T1=T2=0;
+    for(let i=0;i<n;i++){ if(!inlier[i]) continue;
+      const k=beatIndex[i], p=k&1, ti=beats[i].t;
+      S00+=1; S01+=k; S02+=p; S11+=k*k; S12+=k*p; S22+=p*p;
+      T0+=ti; T1+=k*ti; T2+=p*ti;
+    }
+    const sol2 = solve3([[S00,S01,S02],[S01,S11,S12],[S02,S12,S22]],[T0,T1,T2]);
+    if(sol2){ [A_fit,B_fit,C_fit]=sol2; }
+  }
+
+  const measHalf = B_fit;                              // measured half-period (s)
+  const rateSpd  = (expHalf - measHalf)/expHalf * 86400;
+  const beatErrMs = Math.abs(C_fit) * 1000 / 2;        // half the odd/even offset
+
+  // residual stats for confidence
+  const res2 = [];
+  for(let i=0;i<n;i++){
+    if(!inlier[i]) continue;
+    const k=beatIndex[i], p=k&1;
+    res2.push(beats[i].t - (A_fit + B_fit*k + C_fit*p));
+  }
+  const jitterMs = std(res2)*1000;
+  const span = (beats[beats.length-1].t - beats[0].t)||1;
+  // slope (b) standard error ≈ σ_res / (σ_k · √N)
+  const k_arr = []; for(let i=0;i<n;i++) if(inlier[i]) k_arr.push(beatIndex[i]);
+  const kStd = std(k_arr);
+  const slopeSE = jitterMs/1000 / (kStd * Math.sqrt(Math.max(1,k_arr.length))||1);
+  const rateSE_spd = slopeSE/expHalf * 86400;
+
+  // ---- amplitude from sub-pulse spacing ----
+  const liftAngle = parseFloat(ui.lift.value)||52;
+  const ampDeg = estimateAmplitude(measHalf, liftAngle);
+
+  // ---- confidence ----
+  const inlierRatio = nIn/n;
+  let qual = Math.round( 100 * inlierRatio * Math.max(0, 1 - Math.min(1, jitterMs/(expHalf*1000*0.04))) );
+
+  // ---- update readouts with colour coding ----
+  ui.rate.textContent  = (rateSpd>=0?'+':'') + rateSpd.toFixed(1);
+  ui.be.textContent    = beatErrMs.toFixed(2);
+  ui.amp.textContent   = ampDeg ? ampDeg.toFixed(0) : '—';
+  ui.bphOut.textContent= chosenBPH.toFixed(0);
+  ui.conf.textContent  = isFinite(qual)? qual : '—';
+
+  setCellClass(ui.rateCell, Math.abs(rateSpd)<10?'ok':Math.abs(rateSpd)<30?'warn':'bad');
+  setCellClass(ui.beCell,   beatErrMs<0.5?'ok':beatErrMs<1.0?'warn':'bad');
+  if(ampDeg){
+    setCellClass(ui.ampCell, ampDeg>=270&&ampDeg<=310?'ok':ampDeg>=240&&ampDeg<330?'warn':'bad');
+  } else setCellClass(ui.ampCell,'');
+
+  lastInfo = { chosenBPH, expHalf, measHalf, rateSpd, beatErrMs, ampDeg, qual,
+               jitterMs, rateSE_spd, A_fit, B_fit, C_fit, beatIndex, inlier };
+  return lastInfo;
+}
+function setCellClass(el, cls){ el.classList.remove('ok','warn','bad'); if(cls) el.classList.add(cls); }
+function clearReadouts(){
+  ui.rate.textContent='—'; ui.be.textContent='—'; ui.amp.textContent='—';
+  ui.bphOut.textContent='—'; ui.conf.textContent='—';
+  setCellClass(ui.rateCell,''); setCellClass(ui.beCell,''); setCellClass(ui.ampCell,'');
+}
+
+// 3x3 linear solve (Cramer's rule — adequate, well-conditioned here)
+function solve3(M,b){
+  const d = det3(M);
+  if(Math.abs(d) < 1e-14) return null;
+  const x = det3([[b[0],M[0][1],M[0][2]],[b[1],M[1][1],M[1][2]],[b[2],M[2][1],M[2][2]]])/d;
+  const y = det3([[M[0][0],b[0],M[0][2]],[M[1][0],b[1],M[1][2]],[M[2][0],b[2],M[2][2]]])/d;
+  const z = det3([[M[0][0],M[0][1],b[0]],[M[1][0],M[1][1],b[1]],[M[2][0],M[2][1],b[2]]])/d;
+  return [x,y,z];
+}
+function det3(m){
+  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+       - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+       + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+}
+
+// ----------------------------------------------------------------------------
+//  AMPLITUDE — find sub-pulse spacing (unlock → drop) per beat from fastBuf
+// ----------------------------------------------------------------------------
+function estimateAmplitude(measHalf, liftAngle){
+  if(!fastBuf || beats.length<6) return null;
+  const T_balance = 2*measHalf;                  // full balance period
+  const now = audioCtx.currentTime - sessionStart;
+  const ringSec = fastBuf.length / sampleRate;
+  const oldestRingTime = now - ringSec;          // session-time of oldest sample in ring
+
+  const offsets = [];
+  // look at last ~30 beats inside the ring
+  for(let i=Math.max(0,beats.length-30); i<beats.length; i++){
+    const b = beats[i];
+    if(b.t < oldestRingTime + 0.02) continue;
+    if(now - b.t < 0.02) continue;
+    // location in ring of beat peak
+    const samplesFromNow = Math.floor((now - b.t)*sampleRate);
+    const endIdx = (fastWrite - 1 + fastBuf.length) % fastBuf.length;
+    const peakIdx = (endIdx - samplesFromNow + fastBuf.length) % fastBuf.length;
+
+    // search window: from 1.2 ms before peak back to 9 ms before peak
+    const minLook = Math.floor(sampleRate*0.0012);
+    const maxLook = Math.floor(sampleRate*0.009);
+    // baseline noise floor = median of [peak-25ms, peak-12ms]
+    const noiseFrom = Math.floor(sampleRate*0.025), noiseTo=Math.floor(sampleRate*0.012);
+    const noiseSamples = [];
+    for(let k=noiseTo; k<noiseFrom; k++){
+      noiseSamples.push(fastBuf[(peakIdx - k + fastBuf.length) % fastBuf.length]);
+    }
+    const noiseMed = median(noiseSamples);
+    const noiseMad = mad(noiseSamples, noiseMed) * 1.4826 || 1e-9;
+    // candidate unlock = local max in window above noiseMed + 5·MAD
+    let bestV = 0, bestK = -1;
+    const thr = noiseMed + 5*noiseMad;
+    let prev=0, curr=0, next=0;
+    for(let k=minLook; k<maxLook; k++){
+      const v = fastBuf[(peakIdx - k + fastBuf.length) % fastBuf.length];
+      if(v > thr && v > bestV){ bestV = v; bestK = k; }
+    }
+    if(bestK>0){
+      // Refine via parabolic interp around bestK in the same axis
+      const a = fastBuf[(peakIdx - (bestK+1) + fastBuf.length) % fastBuf.length];
+      const c = fastBuf[(peakIdx - (bestK-1) + fastBuf.length) % fastBuf.length];
+      let off = 0; const den = (a - 2*bestV + c);
+      if(Math.abs(den)>1e-18) off = 0.5*(a-c)/den;
+      if(!(off>-1 && off<1)) off=0;
+      const dt = (bestK - off) / sampleRate;        // seconds between unlock and drop
+      if(dt > 0.0015 && dt < 0.010) offsets.push(dt);
+    }
+  }
+  if(offsets.length < 4) return null;
+  const dt = robustMean(offsets);
+  // amplitude = lift / (2·sin(π·Δt / T_balance))
+  const arg = Math.PI * dt / T_balance;
+  const s = Math.sin(arg);
+  if(s < 1e-3) return null;
+  const A = liftAngle / (2*s);
+  if(A < 140 || A > 340) return null;
+  return A;
+}
+
+// ============================================================================
+//  RENDERING
+// ============================================================================
+function dpr(c){ const r=window.devicePixelRatio||1; const w=c.clientWidth,h=c.clientHeight;
+  if(c.width!==Math.floor(w*r)||c.height!==Math.floor(h*r)){c.width=Math.floor(w*r);c.height=Math.floor(h*r);} return r; }
+
+let lastLife = null;
+function draw(){
+  if(!audioCtx) return;
+  const info = analyze();
+  lastLife = lifeAnalyze();
+  sampleRateHistory(info, lastLife);
+  drawTrend();
+
+  // --- envelope strip --------------------------------------------------------
+  {
+    const c=ui.env, r=dpr(c), W=c.width, H=c.height, ctx=c.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0f15'; ctx.fillRect(0,0,W,H);
+    // gridlines every 0.5 s
+    ctx.strokeStyle='#15202d'; ctx.lineWidth=1*r;
+    for(let s=0.5; s<ENV_SECONDS_VIEW; s+=0.5){
+      const x = W*(1 - s/ENV_SECONDS_VIEW); ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    }
+    // envelope
+    const N=envBuf.length; let mx=1e-9; for(let i=0;i<N;i++) if(envBuf[i]>mx) mx=envBuf[i];
+    ctx.strokeStyle='#3aa66c'; ctx.lineWidth=1.2*r; ctx.beginPath();
+    for(let i=0;i<N;i++){
+      const idx=(envWrite+i)%N, v=envBuf[idx]/mx;
+      const x=(i/N)*W, y=H - v*(H-4) - 2;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    // beat markers
+    const now = audioCtx.currentTime - sessionStart;
+    const viewSec = ENV_SECONDS_VIEW;
+    for(let i=0;i<beats.length;i++){
+      const age = now - beats[i].t; if(age<0||age>viewSec) continue;
+      const x = (1 - age/viewSec)*W;
+      ctx.fillStyle = (i%2===0)?'rgba(93,214,164,.85)':'rgba(154,216,255,.85)';
+      ctx.fillRect(x-1*r,0,2*r,H);
+    }
+  }
+
+  // --- paper-tape trace ------------------------------------------------------
+  {
+    const c=ui.trace, r=dpr(c), W=c.width, H=c.height, ctx=c.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0f15'; ctx.fillRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle='#15202d'; ctx.lineWidth=1*r;
+    // vertical gridlines every 5 ms (±20 ms range)
+    const X_RANGE_MS = 20;
+    const xCenter = W/2;
+    const xMsScale = (W/2) / X_RANGE_MS;
+    for(let ms=-X_RANGE_MS; ms<=X_RANGE_MS; ms+=5){
+      const x = xCenter + ms*xMsScale;
+      ctx.strokeStyle = ms===0 ? '#243248' : '#15202d';
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    }
+    // horizontal time gridlines
+    const winSec = parseFloat(ui.window.value)||30;
+    ctx.strokeStyle='#15202d';
+    for(let s=0; s<=winSec; s+=5){
+      const y=(s/winSec)*H; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    }
+    // labels
+    ctx.fillStyle='#445268'; ctx.font=(10*r)+'px monospace';
+    ctx.fillText('-20 ms', 6*r, H-6*r);
+    ctx.textAlign='right'; ctx.fillText('+20 ms', W-6*r, H-6*r); ctx.textAlign='left';
+    ctx.fillText('0', xCenter+3*r, H-6*r);
+
+    if(info && beats.length>4){
+      const { expHalf, measHalf, A_fit, B_fit, C_fit, beatIndex, inlier, rateSpd } = info;
+      // The classic paper-tape: each beat plotted as a dot.
+      //   Y axis: time (newer down)
+      //   X axis: phase residual vs the nominal half-period (NOT the measured).
+      // A perfectly-on-rate watch -> vertical line at x=0.
+      // A fast watch -> dots slope to the LEFT (negative residual) as time progresses.
+      // A slow watch -> slope to the right.
+      const now = audioCtx.currentTime - sessionStart;
+      // align: use beats[0] as reference such that idx 0 has residual 0
+      const t0 = beats[0].t, k0 = beatIndex[0];
+
+      // draw the two slopes (one for tick, one for tock) — classic two-line look
+      // each parity has its own intercept (C_fit applies to parity 1)
+      for(const parity of [0,1]){
+        ctx.strokeStyle = parity===0 ? 'rgba(93,214,164,.35)' : 'rgba(154,216,255,.35)';
+        ctx.lineWidth = 1*r;
+        ctx.setLineDash([4*r,3*r]);
+        ctx.beginPath();
+        let first=true;
+        for(let y=0; y<=H; y+=2){
+          const tAge = (y/H)*winSec;
+          const tAbs = now - (winSec - tAge);   // session time at this Y
+          // expected k (continuous)
+          const kExp = (tAbs - A_fit)/B_fit;
+          // nearest k of given parity
+          const k = Math.round(kExp);
+          if(k<0) continue;
+          const tFit = A_fit + B_fit*k + (k&1?C_fit:0);
+          // residual against nominal
+          const tNom = A_fit + expHalf*k + (k&1?C_fit:0);
+          const res = (tFit - tNom)*1000;       // ms
+          const x = xCenter + res*xMsScale;
+          if(first){ ctx.moveTo(x,y); first=false; } else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // dots
+      for(let i=0;i<beats.length;i++){
+        const b = beats[i];
+        const age = now - b.t;
+        if(age<0||age>winSec) continue;
+        const y = ((winSec-age)/winSec)*H;
+        const k = beatIndex[i], p = k&1;
+        // residual vs expected (nominal) cadence anchored at A_fit
+        const tNom = A_fit + expHalf*k + (p?C_fit:0);
+        let res = (b.t - tNom)*1000; // ms
+        const x = xCenter + res*xMsScale;
+        if(x<0||x>W) continue;
+        ctx.fillStyle = inlier[i] ? (p===0?'#5dd6a4':'#9ad8ff') : '#52606f';
+        ctx.beginPath(); ctx.arc(x, y, 1.8*r, 0, Math.PI*2); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle='#7d8aa0'; ctx.font=(13*r)+'px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('Listening for ticks…', W/2, H/2); ctx.textAlign='left';
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+// ----- rate history sampling + trend chart -----
+function sampleRateHistory(info, lt){
+  if(!info || !life.active) return;
+  const now = Date.now();
+  if(now - lastRateSampleAt < 60_000) return;   // 1 sample per minute
+  lastRateSampleAt = now;
+  rateHistory.push({ t:Math.floor((now-life.startedAt)/1000),
+                     rate:info.rateSpd, be:info.beatErrMs, amp:info.ampDeg||null,
+                     ltRate: lt? lt.rateSpd : null });
+  if(rateHistory.length > RATE_HISTORY_MAX) rateHistory.shift();
+}
+function drawTrend(){
+  const c = ui.trend, r = dpr(c), W = c.width, H = c.height, ctx = c.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0a0f15'; ctx.fillRect(0,0,W,H);
+  // axes / grid
+  ctx.strokeStyle = '#15202d'; ctx.lineWidth = 1*r;
+  // horizontal zero line in middle
+  const yMid = H/2;
+  ctx.strokeStyle = '#243248';
+  ctx.beginPath(); ctx.moveTo(0,yMid); ctx.lineTo(W,yMid); ctx.stroke();
+
+  if(rateHistory.length < 2){
+    ctx.fillStyle='#445268'; ctx.font=(11*r)+'px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(life.active ? 'Collecting trend… (1 sample/min)' : 'Press Start to begin.', W/2, H/2-4*r);
+    ctx.textAlign='left';
+    ui.trendSpan.textContent='—';
+    return;
+  }
+  // y-scale: ±max(10, 1.3·peak) s/day
+  let peak = 10;
+  for(const p of rateHistory){
+    if(p.rate!=null && Math.abs(p.rate)>peak) peak = Math.abs(p.rate);
+  }
+  peak = Math.max(10, peak*1.3);
+  const xScale = (t) => (t / (rateHistory[rateHistory.length-1].t || 1)) * W;
+  const yScale = (v) => yMid - (v/peak) * (H/2 - 4);
+  // grid: ±peak/2 horizontal lines
+  ctx.strokeStyle = '#15202d';
+  for(const v of [-peak, -peak/2, peak/2, peak]){
+    const y = yScale(v); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+  ctx.fillStyle='#445268'; ctx.font=(9*r)+'px monospace';
+  ctx.fillText(`+${peak.toFixed(0)}`, 4*r, yScale(peak)+10*r);
+  ctx.fillText(`-${peak.toFixed(0)}`, 4*r, yScale(-peak)-2*r);
+
+  // window-rate line
+  ctx.strokeStyle = '#3aa66c'; ctx.lineWidth = 1.2*r; ctx.beginPath();
+  let first=true;
+  for(const p of rateHistory){
+    if(p.rate==null) continue;
+    const x = xScale(p.t), y = yScale(p.rate);
+    if(first){ ctx.moveTo(x,y); first=false; } else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // lifetime-rate line (smoother, brighter)
+  ctx.strokeStyle = '#9ad8ff'; ctx.lineWidth = 1.6*r; ctx.beginPath();
+  first=true;
+  for(const p of rateHistory){
+    if(p.ltRate==null) continue;
+    const x = xScale(p.t), y = yScale(p.ltRate);
+    if(first){ ctx.moveTo(x,y); first=false; } else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // current point dot
+  const last = rateHistory[rateHistory.length-1];
+  if(last.ltRate!=null){
+    ctx.fillStyle='#9ad8ff'; ctx.beginPath();
+    ctx.arc(xScale(last.t), yScale(last.ltRate), 2.5*r, 0, Math.PI*2); ctx.fill();
+  }
+  // span label
+  const spanS = last.t;
+  ui.trendSpan.textContent = fmtDuration(spanS) + ' · ' + rateHistory.length + ' pts';
+}
+
+// ============================================================================
+//  SESSION LOG
+// ============================================================================
+function fmt(n, d=1){ return n==null||!isFinite(n)?'—':(n>=0&&d?'+':'')+n.toFixed(d); }
+
+function logReading(kind='manual'){
+  if(!lastInfo){ if(kind==='manual') toast('No reading yet — wait for measurements to stabilise.'); return; }
+  const e = {
+    when: new Date().toISOString(),
+    uptimeS: life.active ? Math.floor((Date.now()-life.startedAt)/1000) : 0,
+    position, kind,
+    bph: lastInfo.chosenBPH,
+    rate: lastInfo.rateSpd,
+    be: lastInfo.beatErrMs,
+    amp: lastInfo.ampDeg,
+    qual: lastInfo.qual,
+    jitter: lastInfo.jitterMs,
+    n: beats.length,
+    lifeRate: lastLife ? lastLife.rateSpd : null,
+    lifeBe:   lastLife ? lastLife.beMs   : null,
+    lifeN: life.beatCount,
+  };
+  sessionLog.push(e); renderLog(); persistLogNow();
+  if(kind==='manual') toast('Logged '+position+' @ '+fmt(e.rate,1)+' s/d');
+}
+ui.logBtn.addEventListener('click', ()=>logReading('manual'));
+ui.clearLogBtn.addEventListener('click', ()=>{ if(confirm('Clear session log?')){ sessionLog=[]; renderLog(); persistLogNow(); } });
+ui.exportBtn.addEventListener('click', ()=>{
+  const rows=[['timestamp','uptime_s','kind','position','bph','rate_s_per_day','beat_error_ms','amplitude_deg','quality','jitter_ms','beats_window','life_rate_s_per_day','life_be_ms','life_beats']];
+  for(const e of sessionLog) rows.push([
+    e.when, e.uptimeS??'', e.kind??'manual', e.position, e.bph,
+    e.rate?.toFixed(2), e.be?.toFixed(3), e.amp?.toFixed(1)??'',
+    e.qual, e.jitter?.toFixed(3), e.n,
+    e.lifeRate?.toFixed(3)??'', e.lifeBe?.toFixed(3)??'', e.lifeN??''
+  ]);
+  const csv = rows.map(r=>r.map(x=>String(x??'')).join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'timegrapher-'+new Date().toISOString().replace(/[:.]/g,'-')+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
+
+function renderLog(){
+  ui.exportBtn.disabled = sessionLog.length===0;
+  ui.clearLogBtn.disabled = sessionLog.length===0;
+  if(!sessionLog.length){ ui.logWrap.innerHTML='<div class="empty">No readings logged yet.</div>'; return; }
+  let html = `<table class="logtable"><thead><tr>
+    <th>When</th><th>Pos</th><th>Rate</th><th>BE</th><th>Amp</th><th>BPH</th><th>Q</th><th></th>
+  </tr></thead><tbody>`;
+  for(let i=sessionLog.length-1;i>=0;i--){
+    const e = sessionLog[i];
+    const t = new Date(e.when);
+    const tStr = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const kindMark = e.kind==='auto' ? '<span style="color:var(--mute)" title="auto-logged"> · auto</span>' : '';
+    html += `<tr>
+      <td>${tStr}${kindMark}</td>
+      <td>${e.position}</td>
+      <td>${fmt(e.rate,1)}</td>
+      <td>${fmt(e.be,2)}</td>
+      <td>${e.amp?e.amp.toFixed(0):'—'}</td>
+      <td>${e.bph}</td>
+      <td>${e.qual??'—'}</td>
+      <td class="del" data-i="${i}" title="Delete">✕</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  ui.logWrap.innerHTML = html;
+  ui.logWrap.querySelectorAll('td.del').forEach(td=>{
+    td.onclick = () => { sessionLog.splice(+td.dataset.i,1); renderLog(); persistLogNow(); };
+  });
+}
+
+// Load persisted log on startup
+loadPersistedLog();
+// Apply default mic profile so initial UI is consistent
+applyMicProfile();
+
+// ============================================================================
+//  PWA: register service worker (if served from a real origin)
+// ============================================================================
+if('serviceWorker' in navigator && location.protocol !== 'file:'){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}) );
+}
+
+window.addEventListener('beforeunload', stop);
+</script>
+</body>
+</html>

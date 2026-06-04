@@ -1,0 +1,25 @@
+{
+  "name": "Timegrapher — precision watch rate analyzer",
+  "short_name": "Timegrapher",
+  "description": "Browser-based timegrapher: rate, beat-error, amplitude, lifetime drift. 100% local.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230b0f14'/><circle cx='96' cy='96' r='72' fill='none' stroke='%235dd6a4' stroke-width='8'/><line x1='96' y1='96' x2='96' y2='42' stroke='%235dd6a4' stroke-width='8' stroke-linecap='round'/><line x1='96' y1='96' x2='134' y2='118' stroke='%239ad8ff' stroke-width='6' stroke-linecap='round'/><circle cx='96' cy='96' r='6' fill='%235dd6a4'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230b0f14'/><circle cx='256' cy='256' r='192' fill='none' stroke='%235dd6a4' stroke-width='20'/><line x1='256' y1='256' x2='256' y2='112' stroke='%235dd6a4' stroke-width='20' stroke-linecap='round'/><line x1='256' y1='256' x2='358' y2='314' stroke='%239ad8ff' stroke-width='16' stroke-linecap='round'/><circle cx='256' cy='256' r='14' fill='%235dd6a4'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
