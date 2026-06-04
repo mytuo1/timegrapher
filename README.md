@@ -30,7 +30,7 @@ No audio leaves your device. No backend. No accounts. Just `run.sh`.
   to 6 h, and localStorage persistence so a refresh doesn't wipe your log.
 - **Mic profiles** for phone, laptop, headset, piezo contact pickup, and
   studio mics — plus input gain, pre-emphasis, threshold-σ slider, and a
-  2-second **calibration test** that confirms the system can actually hear
+  5-second **calibration test** that confirms the system can actually hear
   the watch before you commit to a real reading.
 - **Installable PWA** — works offline once loaded.
 
