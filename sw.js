@@ -1,6 +1,10 @@
 // Timegrapher service worker — cache-first for app shell, network for everything else.
-const CACHE = 'timegrapher-v1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest'];
+const CACHE = 'timegrapher-v2';
+const ASSETS = [
+  './', './index.html', './manifest.webmanifest',
+  './assets/icon.svg', './assets/icon-192.png', './assets/icon-512.png',
+  './assets/apple-touch-icon.png', './assets/favicon-32.png', './assets/og-image.png'
+];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

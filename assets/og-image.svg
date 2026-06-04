@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Timegrapher — precision watch rate analyzer">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6f0e3"/>
+      <stop offset="55%" stop-color="#efe7d6"/>
+      <stop offset="100%" stop-color="#e6dcc6"/>
+    </linearGradient>
+    <radialGradient id="dial" cx="42%" cy="36%" r="75%">
+      <stop offset="0%" stop-color="#fbf7ee"/>
+      <stop offset="62%" stop-color="#f3ebda"/>
+      <stop offset="100%" stop-color="#e7dcc4"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#37a07a"/>
+      <stop offset="100%" stop-color="#247a59"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e7c879"/>
+      <stop offset="100%" stop-color="#bd9438"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="18" y="18" width="1164" height="594" rx="26" fill="none" stroke="#d9cdb2" stroke-width="2"/>
+
+  <!-- faint paper-tape trace motif (two converging dotted lines) -->
+  <g opacity=".5">
+    <g fill="#2f8f6a">
+      <circle cx="760" cy="70" r="3.4"/><circle cx="772" cy="120" r="3.4"/><circle cx="784" cy="170" r="3.4"/>
+      <circle cx="796" cy="220" r="3.4"/><circle cx="808" cy="270" r="3.4"/><circle cx="820" cy="320" r="3.4"/>
+      <circle cx="832" cy="370" r="3.4"/><circle cx="844" cy="420" r="3.4"/><circle cx="856" cy="470" r="3.4"/>
+      <circle cx="868" cy="520" r="3.4"/><circle cx="880" cy="570" r="3.4"/>
+    </g>
+    <g fill="#3f72a4">
+      <circle cx="980" cy="70" r="3.4"/><circle cx="992" cy="120" r="3.4"/><circle cx="1004" cy="170" r="3.4"/>
+      <circle cx="1016" cy="220" r="3.4"/><circle cx="1028" cy="270" r="3.4"/><circle cx="1040" cy="320" r="3.4"/>
+      <circle cx="1052" cy="370" r="3.4"/><circle cx="1064" cy="420" r="3.4"/><circle cx="1076" cy="470" r="3.4"/>
+      <circle cx="1088" cy="520" r="3.4"/><circle cx="1100" cy="570" r="3.4"/>
+    </g>
+  </g>
+
+  <!-- watch mark -->
+  <g transform="translate(835,315) scale(0.86)">
+    <circle cx="0" cy="0" r="186" fill="url(#dial)" stroke="#dccfb4" stroke-width="4"/>
+    <circle cx="0" cy="0" r="186" fill="none" stroke="url(#ring)" stroke-width="16"/>
+    <g stroke="#c8b99c" stroke-width="3">
+      <line x1="0" y1="-164" x2="0" y2="-140"/>
+      <line x1="0" y1="164" x2="0" y2="140"/>
+      <line x1="-164" y1="0" x2="-140" y2="0"/>
+      <line x1="164" y1="0" x2="140" y2="0"/>
+    </g>
+    <path d="M -150 0 a 150 150 0 0 1 70 -127" fill="none" stroke="#3f72a4" stroke-width="9" stroke-linecap="round" opacity=".55"/>
+    <line x1="0" y1="0" x2="0" y2="-124" stroke="#33312b" stroke-width="13" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="94" y2="50" stroke="#2f8f6a" stroke-width="10" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="-60" y2="94" stroke="#3f72a4" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+    <circle cx="0" cy="0" r="15" fill="url(#brass)" stroke="#8a6a1f" stroke-width="2"/>
+    <circle cx="0" cy="0" r="5" fill="#4a3a14"/>
+  </g>
+
+  <!-- wordmark + copy -->
+  <g font-family="'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif" fill="#33312b">
+    <text x="90" y="232" font-size="84" font-weight="600" letter-spacing="-1">Timegrapher</text>
+  </g>
+  <g font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Inter,sans-serif">
+    <text x="94" y="286" font-size="31" fill="#5a5446">Precision watch rate analyzer — in your browser.</text>
+    <!-- three pills -->
+    <g transform="translate(94,330)">
+      <rect x="0" y="0" width="172" height="46" rx="23" fill="#e7f1ea" stroke="#c4ddcf"/>
+      <text x="24" y="30" font-size="23" fill="#247a59" font-weight="600">rate · s/day</text>
+      <rect x="188" y="0" width="196" height="46" rx="23" fill="#eaf0f6" stroke="#c6d6e6"/>
+      <text x="212" y="30" font-size="23" fill="#335f8a" font-weight="600">beat error · ms</text>
+      <rect x="406" y="0" width="196" height="46" rx="23" fill="#f7efe0" stroke="#e6d3a6"/>
+      <text x="430" y="30" font-size="23" fill="#9a6e26" font-weight="600">amplitude · °</text>
+    </g>
+    <text x="94" y="436" font-size="25" fill="#8a8070">Six-position testing · isochronism · sub-pulse scope · 100% local</text>
+  </g>
+
+  <!-- domain badge -->
+  <g font-family="ui-monospace,'SF Mono',Menlo,monospace">
+    <text x="94" y="540" font-size="27" fill="#2f8f6a" font-weight="600">almacitydent.com</text>
+  </g>
+</svg>

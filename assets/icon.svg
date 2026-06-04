@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Timegrapher">
+  <defs>
+    <radialGradient id="dial" cx="42%" cy="36%" r="75%">
+      <stop offset="0%" stop-color="#fbf7ee"/>
+      <stop offset="62%" stop-color="#f3ebda"/>
+      <stop offset="100%" stop-color="#e7dcc4"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#37a07a"/>
+      <stop offset="100%" stop-color="#247a59"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e7c879"/>
+      <stop offset="100%" stop-color="#bd9438"/>
+    </linearGradient>
+  </defs>
+  <!-- rounded plate -->
+  <rect width="512" height="512" rx="108" fill="#efe7d6"/>
+  <rect x="14" y="14" width="484" height="484" rx="96" fill="none" stroke="#e0d5bd" stroke-width="3"/>
+  <!-- dial -->
+  <circle cx="256" cy="256" r="186" fill="url(#dial)" stroke="#dccfb4" stroke-width="4"/>
+  <circle cx="256" cy="256" r="186" fill="none" stroke="url(#ring)" stroke-width="16"/>
+  <!-- ticks -->
+  <g stroke="#c8b99c" stroke-width="3">
+    <line x1="256" y1="92" x2="256" y2="116"/>
+    <line x1="256" y1="396" x2="256" y2="420"/>
+    <line x1="92" y1="256" x2="116" y2="256"/>
+    <line x1="396" y1="256" x2="420" y2="256"/>
+    <g stroke-width="2" opacity=".8">
+      <line x1="338" y1="114" x2="350" y2="135"/>
+      <line x1="398" y1="174" x2="377" y2="186"/>
+      <line x1="398" y1="338" x2="377" y2="326"/>
+      <line x1="338" y1="398" x2="350" y2="377"/>
+      <line x1="174" y1="398" x2="186" y2="377"/>
+      <line x1="114" y1="338" x2="135" y2="326"/>
+      <line x1="114" y1="174" x2="135" y2="186"/>
+      <line x1="174" y1="114" x2="186" y2="135"/>
+    </g>
+  </g>
+  <!-- balance-wheel arc motif (beat) -->
+  <path d="M 256 256 m -150 0 a 150 150 0 0 1 70 -127" fill="none" stroke="#3f72a4" stroke-width="9" stroke-linecap="round" opacity=".55"/>
+  <!-- hands -->
+  <line x1="256" y1="256" x2="256" y2="132" stroke="#33312b" stroke-width="13" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="350" y2="306" stroke="#2f8f6a" stroke-width="10" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="196" y2="350" stroke="#3f72a4" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+  <circle cx="256" cy="256" r="15" fill="url(#brass)" stroke="#8a6a1f" stroke-width="2"/>
+  <circle cx="256" cy="256" r="5" fill="#4a3a14"/>
+</svg>
