@@ -1633,6 +1633,8 @@ function estimateAmplitude(measHalf, liftAngle){
   const endIdx = (fastWrite - 1 + fastBuf.length) % fastBuf.length;
 
   // Window bounds (in samples) for the unlock search, ahead of the impulse.
+  // The unlock pulse precedes the impulse by ~1–9 ms at normal amplitudes
+  // (A ≈ 130–330°); search that span and reject anything outside it.
   const minLook = Math.max(1, Math.floor(sampleRate*0.0010));   // 1.0 ms
   const maxLook = Math.floor(sampleRate*0.0095);                // 9.5 ms
   const refineSpan = Math.floor(sampleRate*0.0035);             // ±3.5 ms peak refine
