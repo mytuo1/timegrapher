@@ -262,9 +262,10 @@ outside 140°–340°.
 - **Amplitude is a *timing* measurement, not a loudness one.** It comes from the
   unlock→impulse gap (Δt) within each beat — not from how loud the tick is — so
   the microphone's absolute sensitivity is irrelevant and a phone mic does *not*
-  need to be a calibrated transducer to read it. (There is also no way to make
-  one: absolute SPL calibration needs a traceable reference source the mic
-  doesn't have, and the OS keeps changing gain on you.) What amplitude *does*
+  need to be a calibrated transducer to read it. (There is also no practical way
+  to do it in a browser: absolute SPL calibration needs a traceable reference
+  source the mic doesn't have, and the OS keeps changing gain on you.) What
+  amplitude *does*
   depend on is the **lift angle** (it scales linearly with it) and how cleanly
   the unlock pulse clears the noise floor. Both are addressable: set the right
   lift angle, and use **Tools → Lift-angle auto-calibration** to snap it against
