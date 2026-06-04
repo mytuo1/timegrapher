@@ -521,6 +521,26 @@
           <div id="calLiftOut" class="tool-out"></div>
         </div>
         <div class="tool-block">
+          <div class="tool-lbl">Clock-rate calibration <small style="color:var(--mute);font-weight:400">— trim the browser oscillator</small></div>
+          <p class="beta-cap" style="margin:.1rem 0 .5rem">The device's audio clock has its own
+            quartz tolerance (typically &lt;10 ppm ≈ &lt;0.9 s/day). Measure a reference timepiece of
+            known rate, enter that rate, and snap — the offset is stored on this device and applied
+            to every rate reading. Set it back to 0 with Reset.</p>
+          <div class="row" style="align-items:flex-end">
+            <label style="flex:1 1 90px">Reference rate (s/d)
+              <input type="number" id="refRate" step="0.1" value="0"/>
+            </label>
+            <button id="calClockBtn" class="ghost" disabled>Snap clock</button>
+          </div>
+          <div class="row" style="align-items:flex-end">
+            <label style="flex:1 1 90px">Clock trim (ppm)
+              <input type="number" id="clockPpm" min="-200" max="200" step="0.1" value="0"/>
+            </label>
+            <button id="clockResetBtn" class="ghost">Reset</button>
+          </div>
+          <div id="calClockOut" class="tool-out"></div>
+        </div>
+        <div class="tool-block">
           <div class="tool-lbl">Audible beat <small style="color:var(--mute);font-weight:400">— hear the beat error</small></div>
           <p class="beta-cap" style="margin:.1rem 0 .5rem">Re-synthesises the detected tick
             &amp; tock as two soft clicks at the measured cadence and offset. A perfectly
@@ -610,6 +630,8 @@ const ui = {
   polar:$('polar'), posDelta:$('posDelta'), posBest:$('posBest'), posWorst:$('posWorst'),
   iso:$('iso'), isoSlope:$('isoSlope'), isoN:$('isoN'),
   refAmp:$('refAmp'), calLiftBtn:$('calLiftBtn'), calLiftOut:$('calLiftOut'),
+  refRate:$('refRate'), calClockBtn:$('calClockBtn'), clockPpm:$('clockPpm'),
+  clockResetBtn:$('clockResetBtn'), calClockOut:$('calClockOut'),
   sonifyEnable:$('sonifyEnable'), sonVol:$('sonVol'),
 };
 ui.bph.addEventListener('change',()=>{ui.customLabel.style.display=ui.bph.value==='custom'?'':'none';});
@@ -1041,6 +1063,16 @@ let beats = [];            // {t: seconds since session start, amp: peak value, 
 let sessionStart = 0;
 let globalSampleCounter = 0;
 
+// ----- Browser audio-clock trim ---------------------------------------------
+// The audio sample clock is driven by the device's own quartz oscillator, which
+// has a small tolerance (typically <10 ppm). Unlike the microphone's absolute
+// sensitivity, this *is* calibratable: it biases every interval by a constant
+// factor, so a single ppm trim — snapped against a reference timepiece — removes
+// it from all rate readings. clockPpm is stored per device in localStorage.
+let clockPpm = 0;
+const SPD_PER_PPM = 86400 / 1e6;                 // 0.0864 s/day per ppm
+const clockCorrHalf = half => half / (1 + clockPpm / 1e6);
+
 // DSP state
 let bpFilters=null, lpFast=null, lpSlow=null;
 let runMed=0, runMad=0;
@@ -1124,6 +1156,17 @@ function loadPersistedLog(){
   }catch{}
 }
 
+// Clock trim persists per device (separate from the session log).
+const LS_CLOCK = 'timegrapher_clock_ppm_v1';
+function saveClockPpm(){ try{ localStorage.setItem(LS_CLOCK, String(clockPpm)); }catch{} }
+function loadClockPpm(){
+  try{
+    const v = parseFloat(localStorage.getItem(LS_CLOCK));
+    if(isFinite(v)) clockPpm = clampPpm(v);
+  }catch{}
+}
+function clampPpm(v){ return Math.max(-200, Math.min(200, v)); }
+
 // ============================================================================
 //  MATH HELPERS
 // ============================================================================
@@ -1183,7 +1226,7 @@ function lifeAnalyze(){
   if(!sol){ ui.ltN.textContent = life.beatCount; return null; }
   const [A,B,C] = sol;                              // B = lifetime half-period
   const measHalf = B;
-  const rateSpd = (life.expHalf - measHalf)/life.expHalf * 86400;
+  const rateSpd = (life.expHalf - clockCorrHalf(measHalf))/life.expHalf * 86400;
   const beMs    = Math.abs(C)*1000/2;
   // Approximate slope SE from elapsed span & residual stats; we don't store all
   // residuals so use a coarse proxy: SE_b ≈ σ_res / (kStd · √N)
@@ -1543,7 +1586,7 @@ function analyze(){
   }
 
   const measHalf = B_fit;                              // measured half-period (s)
-  const rateSpd  = (expHalf - measHalf)/expHalf * 86400;
+  const rateSpd  = (expHalf - clockCorrHalf(measHalf))/expHalf * 86400;
   const beatErrMs = Math.abs(C_fit) * 1000 / 2;        // half the odd/even offset
 
   // residual stats for confidence
@@ -2025,6 +2068,9 @@ function renderLog(){
 
 // Load persisted log on startup
 loadPersistedLog();
+// Restore the per-device clock trim and reflect it in the UI
+loadClockPpm();
+ui.clockPpm.value = clockPpm.toFixed(1);
 // Apply default mic profile so initial UI is consistent
 applyMicProfile();
 
@@ -2244,6 +2290,30 @@ ui.calLiftBtn.addEventListener('click', ()=>{
   toast(`Lift angle set to ${lift.toFixed(1)}°`);
 });
 
+// ----- Browser audio-clock trim ---------------------------------------------
+// Unlike absolute amplitude, the sample-clock tolerance is a single constant
+// scale factor, so it can be calibrated out: measure a reference timepiece of
+// known rate, and snap the ppm trim so the live reading matches it.
+function applyClockPpm(v, msg){
+  clockPpm = clampPpm(isFinite(v) ? v : 0);
+  ui.clockPpm.value = clockPpm.toFixed(1);
+  saveClockPpm();
+  if(lastInfo && audioCtx) analyze();      // refresh the live readout immediately
+  if(msg) ui.calClockOut.innerHTML = msg;
+}
+ui.calClockBtn.addEventListener('click', ()=>{
+  const ref = parseFloat(ui.refRate.value);
+  if(!isFinite(ref)){ toast('Enter the reference timepiece rate in s/day'); return; }
+  if(!lastInfo){ ui.calClockOut.textContent='No live rate yet — let it settle first.'; return; }
+  const shownNow = lastInfo.rateSpd;      // already includes the current trim
+  const delta = clampPpm(clockPpm + (ref - shownNow)/SPD_PER_PPM);
+  applyClockPpm(delta,
+    `Clock trim <b>${(ref-shownNow>=0?'+':'')}${((ref-shownNow)/SPD_PER_PPM).toFixed(1)} ppm → ${delta.toFixed(1)} ppm</b> so this reads ${ref.toFixed(1)} s/d.`);
+  toast(`Clock trim set to ${delta.toFixed(1)} ppm`);
+});
+ui.clockPpm.addEventListener('change', ()=>{ applyClockPpm(parseFloat(ui.clockPpm.value)); });
+ui.clockResetBtn.addEventListener('click', ()=>{ applyClockPpm(0, 'Clock trim reset to 0 ppm.'); toast('Clock trim reset'); });
+
 // ----- Audible beat sonifier ------------------------------------------------
 // A small dedicated output AudioContext schedules two soft clicks per balance
 // period at the measured cadence and beat-error offset, so the asymmetry is
@@ -2292,7 +2362,7 @@ function sonClick(when, freq, vol){
 }
 
 // enable beta tool buttons once a session is live
-function setBetaLiveEnabled(on){ ui.calLiftBtn.disabled = !on; }
+function setBetaLiveEnabled(on){ ui.calLiftBtn.disabled = !on; ui.calClockBtn.disabled = !on; }
 
 
 // ============================================================================

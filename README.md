@@ -259,16 +259,27 @@ outside 140°–340°.
 
 ## Limitations & honest disclaimers
 
-- A phone or laptop mic is **not** a calibrated transducer. Absolute
-  amplitude readings can easily be off by ±20° vs. a dedicated machine —
-  the **trend** (DU vs. DD, before vs. after service) is the useful signal.
+- **Amplitude is a *timing* measurement, not a loudness one.** It comes from the
+  unlock→impulse gap (Δt) within each beat — not from how loud the tick is — so
+  the microphone's absolute sensitivity is irrelevant and a phone mic does *not*
+  need to be a calibrated transducer to read it. (There is also no way to make
+  one: absolute SPL calibration needs a traceable reference source the mic
+  doesn't have, and the OS keeps changing gain on you.) What amplitude *does*
+  depend on is the **lift angle** (it scales linearly with it) and how cleanly
+  the unlock pulse clears the noise floor. Both are addressable: set the right
+  lift angle, and use **Tools → Lift-angle auto-calibration** to snap it against
+  one trusted reference position — every other position then reads correctly.
+  Treat the absolute number as ±10–20° unless you've done that; the **trend**
+  (DU vs. DD, before vs. after service) is reliable regardless.
 - Beat error and rate, by contrast, depend almost entirely on **timing** —
   these are accurate to the limits of the audio clock and detector jitter.
 - The lift-angle table is a best-effort compilation from manufacturer specs
   and the Witschi reference. If your reference disagrees, override it.
-- Browser audio sample-rate quartz oscillators have their own tolerance
-  (typically <10 ppm = <0.9 s/day). For ultimate-precision work, calibrate
-  the app against a known-good reference timepiece.
+- The browser audio clock has its own quartz tolerance (typically <10 ppm =
+  <0.9 s/day). Unlike absolute amplitude, this *is* calibratable — it's a single
+  constant scale factor. Measure a reference timepiece of known rate and use
+  **Tools → Clock-rate calibration** to snap the ppm trim; the offset is stored
+  on that device and applied to every subsequent reading.
 
 ---
 
