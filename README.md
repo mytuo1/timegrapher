@@ -16,7 +16,16 @@ No audio leaves your device. No backend. No accounts. Just `run.sh`.
 - **True beat error** from the regression's odd/even offset coefficient — not
   just the difference of two interval averages.
 - **Amplitude from sub-pulse spacing** using the standard escapement physics
-  formula `A = lift / (2·sin(π·Δt / T_balance))`.
+  formula `A = lift / (2·sin(π·Δt / T_balance))`, now with **group-delay
+  compensation** and an adaptive unlock-pulse threshold so the reading shows up
+  reliably (with a `~` confidence flag instead of going blank when the unlock
+  pulse is faint).
+- **Beta workbench** (experimental, opt-in): a **sub-pulse oscilloscope** of one
+  magnified beat, a **positional rosette** plotting rate spread across the six
+  positions, an **isochronism plot** (rate vs amplitude as the mainspring winds
+  down), **lift-angle auto-calibration** from a known reference amplitude, and an
+  **audible beat sonifier** that replays the detected tick/tock so you can *hear*
+  beat error.
 - **Classic paper-tape trace** (dual scrolling lines, slope = rate, gap = beat
   error) plus a live envelope strip and a **lifetime rate-history chart**.
 - **~90 movement presets** across 22 brands (ETA, Sellita, Miyota, Seiko/GS,
@@ -240,6 +249,9 @@ outside 140°–340°.
 | `index.html`            | The whole app — UI, DSP, analysis, rendering.    |
 | `manifest.webmanifest`  | PWA install manifest.                            |
 | `sw.js`                 | Service worker — cache-first offline shell.      |
+| `assets/`               | Brand icon, PWA icons, and social/OG share image.|
+| `robots.txt`            | Crawler directives + sitemap pointer.            |
+| `sitemap.xml`           | Sitemap for search engines.                      |
 | `run.sh`                | Local HTTP launcher (Linux / WSL / macOS).       |
 | `README.md`             | This file.                                       |
 
