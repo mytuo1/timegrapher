@@ -62,6 +62,22 @@ qualifies, so no certificate is needed.
 Once loaded, you can install it as a PWA from your browser's menu (look for
 "Install app" / "Add to Home Screen"). After install it works fully offline.
 
+### Running as a service (systemd)
+
+To keep the web server up at all times (start on boot, auto-restart on crash),
+a ready-to-use unit file ships in the repo: [`timegrapher.service`](timegrapher.service).
+It runs `run.sh` headless (`NO_BROWSER=1`, so it never tries to open a desktop
+browser) and can be copied to your other daemons by editing the
+`WorkingDirectory`, `ExecStart`, and `PORT`/`HOST` lines.
+
+```bash
+sudo cp timegrapher.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now timegrapher.service   # start now + on boot
+systemctl status timegrapher                      # check it's up
+journalctl -u timegrapher -f                       # follow logs
+```
+
 ---
 
 ## How a timegrapher works — and how this one does it
@@ -253,6 +269,7 @@ outside 140°–340°.
 | `robots.txt`            | Crawler directives + sitemap pointer.            |
 | `sitemap.xml`           | Sitemap for search engines.                      |
 | `run.sh`                | Local HTTP launcher (Linux / WSL / macOS).       |
+| `timegrapher.service`   | systemd unit to keep the web server running.     |
 | `README.md`             | This file.                                       |
 
 ---

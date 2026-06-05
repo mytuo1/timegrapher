@@ -1,0 +1,62 @@
+# ============================================================================
+# Timegrapher — systemd service unit
+# ----------------------------------------------------------------------------
+# Keeps the static web server (run.sh) running at all times: it starts on boot
+# and is automatically restarted if it ever exits or crashes.
+#
+# This unit is meant to be copied to your other daemons too — just change the
+# Description, WorkingDirectory, ExecStart, and the PORT/HOST below to match.
+#
+# Install:
+#   1. Edit the User/Group, WorkingDirectory, and Environment lines below so
+#      they point at the checkout and the port/host you want.
+#   2. sudo cp timegrapher.service /etc/systemd/system/timegrapher.service
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now timegrapher.service   # start now + on boot
+#
+# Manage:
+#   systemctl status timegrapher          # is it up?
+#   journalctl -u timegrapher -f          # follow logs
+#   sudo systemctl restart timegrapher    # restart
+# ============================================================================
+[Unit]
+Description=Timegrapher static web server
+Documentation=https://github.com/mytuo1/timegrapher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Run as an unprivileged account (create one with: sudo useradd -r -s /usr/sbin/nologin timegrapher).
+User=timegrapher
+Group=timegrapher
+
+# Absolute path to the checked-out repository on this host.
+WorkingDirectory=/opt/timegrapher
+
+# NO_BROWSER stops run.sh from trying to launch a desktop browser (it is headless here).
+# Change PORT/HOST to suit; bind to 127.0.0.1 when sitting behind a reverse proxy.
+Environment=NO_BROWSER=1
+Environment=PORT=8000
+Environment=HOST=127.0.0.1
+ExecStart=/opt/timegrapher/run.sh
+
+# Keep it up always.
+Restart=always
+RestartSec=2
+
+# Basic hardening for a read-only static file server.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

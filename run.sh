@@ -18,6 +18,8 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
 open_browser() {
+  # Skip launching a browser when running headless / under systemd (NO_BROWSER=1).
+  if [ -n "${NO_BROWSER:-}" ]; then return 0; fi
   local url="http://${HOST}:${PORT}/"
   if   command -v xdg-open >/dev/null 2>&1; then xdg-open "$url" >/dev/null 2>&1 &
   elif command -v open      >/dev/null 2>&1; then open      "$url" >/dev/null 2>&1 &
