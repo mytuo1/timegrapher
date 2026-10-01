@@ -1104,6 +1104,20 @@ const life = {
   T0:0, T1:0, T2:0,
   // for residual variance
   SR:0, SR2:0, nRes:0,
+  // --- numerically-stable (centred) lifetime accumulators -------------------
+  // The raw Σk, Σk², Σk·t sums above overflow double precision within an hour
+  // (Σk² ≈ 1e16 by 12 h) and, fed to Cramer's rule, destroy the lifetime rate and
+  // beat error. These centred (Welford-style) moments keep every quantity small
+  // and are exact regardless of session length. lifeAnalyze() reads these.
+  n:0,        // beats counted in the centred sums
+  meanK:0,    // running mean of beat index k
+  meanT:0,    // running mean of beat time t
+  meanP:0,    // running mean of parity p (=k&1)
+  Skk:0,      // Σ (k−meanK)²            → slope denominator
+  Skt:0,      // Σ (k−meanK)(t−meanT)    → slope numerator (rate)
+  Skp:0,      // Σ (k−meanK)(p−meanP)    → k/parity covariance
+  Spp:0,      // Σ (p−meanP)²            → parity denominator
+  Spt:0,      // Σ (p−meanP)(t−meanT)    → parity numerator (beat error)
 };
 // rate-history samples: 1 entry per minute (kept for last 14 days)
 let rateHistory = [];   // {t:wallClockSec, rate, be, amp, ltRate}
@@ -1207,35 +1221,57 @@ function lifeAddBeat(tSec){
   life.S02 += p;        life.S12 += k*p;     life.S22 += p*p;
   life.T0  += tSec;     life.T1  += k*tSec;  life.T2  += p*tSec;
   life.beatCount++;
+
+  // --- centred moments (stable for arbitrarily long sessions) --------------
+  // Online (Welford) update of the centred second moments of (k, p, t). Because
+  // each term is a product of *deviations from the running mean*, magnitudes stay
+  // small and the solve in lifeAnalyze() never suffers catastrophic cancellation.
+  life.n++;
+  const dk = k - life.meanK;             life.meanK += dk / life.n;
+  const dT = tSec - life.meanT;          life.meanT += dT / life.n;
+  const dP = p - life.meanP;             life.meanP += dP / life.n;
+  life.Skk += dk * (k    - life.meanK);
+  life.Skt += dk * (tSec - life.meanT);
+  life.Skp += dk * (p    - life.meanP);
+  life.Spp += dP * (p    - life.meanP);
+  life.Spt += dP * (tSec - life.meanT);
 }
 function lifeReset(){
   Object.assign(life, { active:false, startedAt:0, beatCount:0, lastBeatTime:0,
     lastBeatIdx:0, expHalf:0,
-    S00:0,S01:0,S02:0,S11:0,S12:0,S22:0, T0:0,T1:0,T2:0, SR:0,SR2:0,nRes:0 });
+    S00:0,S01:0,S02:0,S11:0,S12:0,S22:0, T0:0,T1:0,T2:0, SR:0,SR2:0,nRes:0,
+    n:0, meanK:0, meanT:0, meanP:0, Skk:0, Skt:0, Skp:0, Spp:0, Spt:0 });
 }
-// Solve lifetime regression and update lifetime metrics
+// Solve lifetime regression and update lifetime metrics.
+// Uses the centred moments accumulated in lifeAddBeat() — numerically stable for
+// sessions of any length, unlike the previous raw-sum + Cramer's-rule approach
+// which overflowed double precision within an hour.
 function lifeAnalyze(){
-  if(life.beatCount < 30){
+  if(life.n < 30){
     ui.ltRate.textContent='—'; ui.ltBe.textContent='—'; ui.ltSE.textContent='—';
     ui.ltN.textContent = life.beatCount;
     return null;
   }
-  const sol = solve3(
-    [[life.S00,life.S01,life.S02],[life.S01,life.S11,life.S12],[life.S02,life.S12,life.S22]],
-    [life.T0, life.T1, life.T2]);
-  if(!sol){ ui.ltN.textContent = life.beatCount; return null; }
-  const [A,B,C] = sol;                              // B = lifetime half-period
-  const measHalf = B;
+  // Slope of t-vs-k is the measured half-period (centred 2-column regression).
+  if(life.Skk <= 0){ ui.ltN.textContent = life.beatCount; return null; }
+  const measHalf = life.Skt / life.Skk;
   const rateSpd = (life.expHalf - clockCorrHalf(measHalf))/life.expHalf * 86400;
-  const beMs    = Math.abs(C)*1000/2;
-  // Approximate slope SE from elapsed span & residual stats; we don't store all
-  // residuals so use a coarse proxy: SE_b ≈ σ_res / (kStd · √N)
-  // kStd ≈ N/√12  for ~uniformly-spaced k → kStd ≈ life.beatCount/3.46
-  const kStd = Math.max(1, life.beatCount/3.464);
-  // residual variance estimate (running): we accumulate SR2 in finalize step
-  // we maintain a rough on-line residual estimate by sampling jitterMs from window
+
+  // Beat error = parity coefficient c of t = a + b·k + c·(k&1), solved from the
+  // centred 2×2 normal equations (well-conditioned). c is exactly the amount by
+  // which one half-period exceeds the other — the standard beat error. No /2.
+  let beMs = 0;
+  {
+    const d = life.Skk*life.Spp - life.Skp*life.Skp;
+    if(Math.abs(d) > 1e-18){
+      const c = (life.Skk*life.Spt - life.Skp*life.Skt) / d;
+      beMs = Math.abs(c) * 1000;
+    }
+  }
+
+  // Slope standard error ≈ σ_res / √Skk ; σ_res proxied by the live window jitter.
   const jit = (lastInfo && lastInfo.jitterMs) ? lastInfo.jitterMs/1000 : 0.002;
-  const slopeSE = jit / (kStd * Math.sqrt(life.beatCount));
+  const slopeSE = jit / Math.sqrt(life.Skk);
   const seSpd = slopeSE/life.expHalf * 86400;
 
   ui.ltRate.textContent = (rateSpd>=0?'+':'') + rateSpd.toFixed(2);
@@ -1587,7 +1623,11 @@ function analyze(){
 
   const measHalf = B_fit;                              // measured half-period (s)
   const rateSpd  = (expHalf - clockCorrHalf(measHalf))/expHalf * 86400;
-  const beatErrMs = Math.abs(C_fit) * 1000 / 2;        // half the odd/even offset
+  // C_fit is the parity coefficient of t = A + B·k + C·(k&1): the time offset of
+  // odd beats relative to even beats. That offset IS the beat error (the amount by
+  // which one half-period exceeds the other). No extra factor of 2 — dividing by 2
+  // was the bug that made this app read half of what tg and other tools report.
+  const beatErrMs = Math.abs(C_fit) * 1000;
 
   // residual stats for confidence
   const res2 = [];
@@ -1676,10 +1716,17 @@ function estimateAmplitude(measHalf, liftAngle){
   const endIdx = (fastWrite - 1 + fastBuf.length) % fastBuf.length;
 
   // Window bounds (in samples) for the unlock search, ahead of the impulse.
-  // The unlock pulse precedes the impulse by ~1–9 ms at normal amplitudes
-  // (A ≈ 130–330°); search that span and reject anything outside it.
-  const minLook = Math.max(1, Math.floor(sampleRate*0.0010));   // 1.0 ms
-  const maxLook = Math.floor(sampleRate*0.0095);                // 9.5 ms
+  // The unlock→drop interval (the "first-to-third pulse" span Δt used by the
+  // amplitude formula) is NOT a fixed number of milliseconds — it scales with the
+  // balance period and the amplitude:  Δt = (T/π)·asin(lift/(2A)).
+  // A hard-coded 1–9.5 ms window only fits high-beat, high-amplitude movements and
+  // silently rejects everything else (which is why amplitude often never showed).
+  // Derive the window from the *measured* period so it is correct at any BPH.
+  //   A = 340° → Δt ≈ 0.0244·T ;  A = 140° → Δt ≈ 0.0593·T   (lift = 52°)
+  const dtMinSec = 0.0244 * T_balance;   // corresponds to the highest valid amplitude
+  const dtMaxSec = 0.0593 * T_balance;   // corresponds to the lowest valid amplitude
+  const minLook = Math.max(1, Math.floor(sampleRate * dtMinSec * 0.9));
+  const maxLook = Math.max(minLook + 2, Math.ceil(sampleRate * dtMaxSec * 1.1));
   const refineSpan = Math.floor(sampleRate*0.0035);             // ±3.5 ms peak refine
   const noiseTo   = Math.floor(sampleRate*0.012);               // noise window 12..26 ms back
   const noiseFrom = Math.floor(sampleRate*0.026);
@@ -1735,8 +1782,10 @@ function estimateAmplitude(measHalf, liftAngle){
       let off = 0; const den = (a - 2*bestV + c);
       if(Math.abs(den)>1e-18) off = 0.5*(a-c)/den;
       if(!(off>-1 && off<1)) off=0;
-      const dt = (bestK - off) / sampleRate;        // unlock → impulse interval
-      if(dt > 0.0015 && dt < 0.0095){
+      const dt = (bestK - off) / sampleRate;        // unlock → drop interval
+      // Accept only physically-plausible spans for the measured period (the same
+      // derived bounds used for the search window above), not a fixed ms range.
+      if(dt > dtMinSec && dt < dtMaxSec){
         offsets.push(dt);
         // keep the clearest beat for the oscilloscope
         if(bestV > bestScopeV){ bestScopeV = bestV;

@@ -59,6 +59,24 @@ qualifies, so no certificate is needed.
 > **On Windows without WSL:** open a terminal in the repo folder and run
 > `python -m http.server 8000`, then visit <http://localhost:8000/>.
 
+### Running on a VM / EC2 / home server (WSL, Amazon EC2, any remote host)
+
+The microphone is captured by **your** browser, so the server only needs to
+serve the static files — any host that can run `python3`/`node`/`busybox` will
+do. The one rule is the secure-context requirement: browsers only allow
+`getUserMedia` on `localhost` or over **HTTPS**.
+
+- **Easiest — SSH tunnel (no TLS needed):**
+  ```bash
+  ssh -L 8000:127.0.0.1:8000 user@your-vm
+  # on the VM:  NO_BROWSER=1 ./run.sh
+  # then open http://localhost:8000 on your own machine
+  ```
+- **LAN / public IP:** bind to all interfaces with `HOST=0.0.0.0 ./run.sh`,
+  but browsers will block the mic over plain `http://<ip>`. Put a TLS reverse
+  proxy (Caddy/nginx) in front and browse to `https://…`, or use the SSH
+  tunnel above.
+
 Once loaded, you can install it as a PWA from your browser's menu (look for
 "Install app" / "Add to Home Screen"). After install it works fully offline.
 
@@ -125,16 +143,27 @@ solve, one round of MAD-based outlier rejection). Then
 
 - **b** is the measured half-period (s).
 - **rate (s/day) = (T_exp − b) / T_exp × 86400** where T_exp = 3600 / BPH.
-- **c** is the odd/even offset → **beat error (ms) = |c| × 1000 / 2**.
+- **c** is the odd/even offset → **beat error (ms) = |c| × 1000**.
+
+> Why no ÷ 2? Beat error is the asymmetry between the two half-periods:
+> if they are `H+E` and `H−E` (they must sum to the full period `2H`), the
+> beat error is `E = (long − short)/2`. In the regression the odd beats sit
+> exactly `c` later than the even beats, and that offset `c` **is** `E` — so
+> `beat error = |c|`, not `|c|/2`. (An earlier version divided by 2 and read
+> half of every other tool.)
 
 This is dramatically more precise than averaging intervals, because the
 standard error of the slope grows only as **1 / (N^(3/2) · σ_jitter)**. With
 240 beats in 30 s and ≈1 ms detector jitter, rate precision is already on
 the order of **±0.5 s/day** — and it gets tighter the longer you record.
 
-The **Lifetime** card runs the same regression over **every** beat since you
-hit Start (using O(1) running sums, so it handles multi-day sessions without
-allocating). Lifetime rate ± 1σ is shown live.
+The **Lifetime** card runs the same fit over **every** beat since you hit
+Start. It uses O(1) running sums of the **centred** moments `Σ(k−k̄)²`,
+`Σ(k−k̄)(t−t̄)`, `Σ(p−p̄)(t−t̄)`, … (Welford-style online updates), so the
+solve stays well-conditioned for multi-day sessions — the naive raw sums
+(`Σk²` reaches ~1e16 by 12 h) lose all precision in double arithmetic and
+silently corrupt the lifetime rate and beat error. Lifetime rate ± 1σ is
+shown live.
 
 ### Amplitude — sub-pulse spacing
 
@@ -154,11 +183,15 @@ Inverting:
 
 > **A = lift / (2 · sin(π · Δt / T_balance))**, &nbsp; T_balance = 2 · T_halfbeat
 
-We search ~9 ms before each main peak in the high-resolution fast-envelope
-ring buffer for a smaller transient above the local noise floor, refine its
-location with parabolic interpolation, and take the **robust mean** of Δt
-across the last ~30 beats. The result is rejected as unreliable if it falls
-outside 140°–340°.
+We search the high-resolution fast-envelope ring buffer before each main peak
+for a smaller unlock transient above the local noise floor, refine its location
+with parabolic interpolation, and take the **robust mean** of Δt across the
+last ~30 beats. Because Δt scales with the balance period and amplitude (a
+18000-vph movement at 150° spans ~22 ms; a 36000-vph one at 320° only ~5 ms),
+the search window is **derived from the measured period** — `Δt` between
+`0.0244·T` and `0.0593·T` — rather than a fixed millisecond range that would
+reject valid readings. The result is discarded as unreliable if the implied
+amplitude falls outside 140°–340°.
 
 ### Why this is "professional-grade"
 
