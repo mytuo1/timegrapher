@@ -145,12 +145,11 @@ solve, one round of MAD-based outlier rejection). Then
 - **rate (s/day) = (T_exp − b) / T_exp × 86400** where T_exp = 3600 / BPH.
 - **c** is the odd/even offset → **beat error (ms) = |c| × 1000**.
 
-> Why no ÷ 2? Beat error is the asymmetry between the two half-periods:
-> if they are `H+E` and `H−E` (they must sum to the full period `2H`), the
-> beat error is `E = (long − short)/2`. In the regression the odd beats sit
-> exactly `c` later than the even beats, and that offset `c` **is** `E` — so
-> `beat error = |c|`, not `|c|/2`. (An earlier version divided by 2 and read
-> half of every other tool.)
+> Beat error is the asymmetry of the two half-periods: they are `H+E` and `H−E`
+> (summing to the full period `2H`), where `E` is the beat error — the deviation
+> of one half-period from nominal (the Weishi convention). With the odd beats at
+> `H+E`, the parity coefficient `c` of the regression comes out **equal to `E`**
+> (verified by exact solve), so `beat error = |c|`. No ÷2.
 
 This is dramatically more precise than averaging intervals, because the
 standard error of the slope grows only as **1 / (N^(3/2) · σ_jitter)**. With

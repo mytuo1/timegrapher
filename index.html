@@ -1257,9 +1257,11 @@ function lifeAnalyze(){
   const measHalf = life.Skt / life.Skk;
   const rateSpd = (life.expHalf - clockCorrHalf(measHalf))/life.expHalf * 86400;
 
-  // Beat error = parity coefficient c of t = a + b·k + c·(k&1), solved from the
-  // centred 2×2 normal equations (well-conditioned). c is exactly the amount by
-  // which one half-period exceeds the other — the standard beat error. No /2.
+  // Beat error from the parity coefficient c of t = a + b·k + c·(k&1), solved from
+  // the centred 2×2 normal equations (well-conditioned). The two half-periods are
+  // H+E and H−E (E = beat error, the Weishi convention: deviation of one half from
+  // nominal). With odd beats at H+E the parity coefficient c comes out EQUAL to E
+  // (verified by exact solve), so beat error = |c|. No /2.
   let beMs = 0;
   {
     const d = life.Skk*life.Spp - life.Skp*life.Skp;
@@ -1623,10 +1625,9 @@ function analyze(){
 
   const measHalf = B_fit;                              // measured half-period (s)
   const rateSpd  = (expHalf - clockCorrHalf(measHalf))/expHalf * 86400;
-  // C_fit is the parity coefficient of t = A + B·k + C·(k&1): the time offset of
-  // odd beats relative to even beats. That offset IS the beat error (the amount by
-  // which one half-period exceeds the other). No extra factor of 2 — dividing by 2
-  // was the bug that made this app read half of what tg and other tools report.
+  // C_fit is the parity coefficient of t = A + B·k + C·(k&1). The half-periods are
+  // H+E and H−E (E = beat error); with odd beats at H+E, C_fit comes out EQUAL to E
+  // (verified by exact solve), so beat error = |C_fit|. No /2.
   const beatErrMs = Math.abs(C_fit) * 1000;
 
   // residual stats for confidence
@@ -1728,18 +1729,24 @@ function estimateAmplitude(measHalf, liftAngle){
   const minLook = Math.max(1, Math.floor(sampleRate * dtMinSec * 0.9));
   const maxLook = Math.max(minLook + 2, Math.ceil(sampleRate * dtMaxSec * 1.1));
   const refineSpan = Math.floor(sampleRate*0.0035);             // ±3.5 ms peak refine
-  const noiseTo   = Math.floor(sampleRate*0.012);               // noise window 12..26 ms back
-  const noiseFrom = Math.floor(sampleRate*0.026);
+  // Noise baseline is measured BEFORE the unlock-search region so a strong unlock
+  // pulse (which at low BPH can sit >12 ms out) never contaminates its own floor.
+  // A 4 ms guard gap separates the search window from the noise window.
+  const guard     = Math.floor(sampleRate*0.004);
+  const noiseTo   = maxLook + guard;                            // start of noise window
+  const noiseFrom = noiseTo + Math.floor(sampleRate*0.014);     // 14 ms of noise samples
 
   const offsets = [];
   let attempts = 0;
   let bestScope = null, bestScopeV = -1;
 
-  // look at last ~30 beats fully contained in the ring
+  // A beat is usable only if the full noise window (the furthest-back region we
+  // read) is still inside the ring, and the impulse itself is fully captured.
+  const preRollSec = noiseFrom / sampleRate + 0.004;    // noise window + small margin
   for(let i=Math.max(0,beats.length-30); i<beats.length; i++){
     const b = beats[i];
-    if(b.t < oldestRingTime + 0.030) continue;   // need ~26 ms of pre-roll for noise window
-    if(now - b.t < 0.012) continue;              // too fresh — impulse not fully past
+    if(b.t < oldestRingTime + preRollSec) continue;   // need full noise pre-roll
+    if(now - b.t < 0.012) continue;                   // too fresh — impulse not fully past
     attempts++;
 
     // Nominal location of the beat in the ring (slow-envelope timestamp lags the
@@ -1816,7 +1823,9 @@ function estimateAmplitude(measHalf, liftAngle){
 // Returns {samples, impulseK, unlockK, thr, sr} where indices are *lags* (ms
 // before the impulse grows to the right edge). samples[0] is oldest.
 function buildScopeSlice(impIdx, unlockLag, thr){
-  const pre  = Math.floor(sampleRate*0.012);   // 12 ms before impulse
+  // Pre-impulse span must comfortably contain the unlock pulse, which at low BPH
+  // can sit ~24 ms out. Use at least 12 ms, or the measured unlock lag + margin.
+  const pre  = Math.max(Math.floor(sampleRate*0.012), Math.ceil(unlockLag + sampleRate*0.004));
   const post = Math.floor(sampleRate*0.004);   // 4 ms after impulse
   const len  = pre + post;
   const out  = new Float32Array(len);
