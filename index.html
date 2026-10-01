@@ -1118,6 +1118,12 @@ const life = {
   Skp:0,      // Σ (k−meanK)(p−meanP)    → k/parity covariance
   Spp:0,      // Σ (p−meanP)²            → parity denominator
   Spt:0,      // Σ (p−meanP)(t−meanT)    → parity numerator (beat error)
+  // --- robust lifetime beat error (even/odd interval means, O(1)) ----------
+  // Beat error = |mean(Δ_even) − mean(Δ_odd)| / 2 over clean (uninterrupted)
+  // intervals. Only intervals that advance exactly one beat index (dk==1) are
+  // used, so a missed beat never corrupts the parity grouping.
+  sumEven:0, nEven:0,   // Σ and count of intervals into even-indexed beats
+  sumOdd:0,  nOdd:0,    // Σ and count of intervals into odd-indexed beats
 };
 // rate-history samples: 1 entry per minute (kept for last 14 days)
 let rateHistory = [];   // {t:wallClockSec, rate, be, amp, ltRate}
@@ -1213,6 +1219,13 @@ function lifeAddBeat(tSec){
     if(Math.abs(dt - dk*life.expHalf) > 0.30*life.expHalf){
       life.lastBeatTime = tSec; life.lastBeatIdx = k; return;
     }
+    // Clean, uninterrupted interval (dk==1 → no missed beat): accumulate it into
+    // the even/odd group of the beat it ARRIVES at (k). Used for the robust
+    // lifetime beat error = |mean(Δ_even) − mean(Δ_odd)| / 2.
+    if(dk === 1){
+      if(k & 1){ life.sumOdd += dt;  life.nOdd++; }
+      else     { life.sumEven += dt; life.nEven++; }
+    }
     life.lastBeatTime = tSec; life.lastBeatIdx = k;
   }
   const p = k & 1;
@@ -1240,7 +1253,8 @@ function lifeReset(){
   Object.assign(life, { active:false, startedAt:0, beatCount:0, lastBeatTime:0,
     lastBeatIdx:0, expHalf:0,
     S00:0,S01:0,S02:0,S11:0,S12:0,S22:0, T0:0,T1:0,T2:0, SR:0,SR2:0,nRes:0,
-    n:0, meanK:0, meanT:0, meanP:0, Skk:0, Skt:0, Skp:0, Spp:0, Spt:0 });
+    n:0, meanK:0, meanT:0, meanP:0, Skk:0, Skt:0, Skp:0, Spp:0, Spt:0,
+    sumEven:0, nEven:0, sumOdd:0, nOdd:0 });
 }
 // Solve lifetime regression and update lifetime metrics.
 // Uses the centred moments accumulated in lifeAddBeat() — numerically stable for
@@ -1257,17 +1271,19 @@ function lifeAnalyze(){
   const measHalf = life.Skt / life.Skk;
   const rateSpd = (life.expHalf - clockCorrHalf(measHalf))/life.expHalf * 86400;
 
-  // Beat error from the parity coefficient c of t = a + b·k + c·(k&1), solved from
-  // the centred 2×2 normal equations (well-conditioned). The two half-periods are
-  // H+E and H−E (E = beat error, the Weishi convention: deviation of one half from
-  // nominal). With odd beats at H+E the parity coefficient c comes out EQUAL to E
-  // (verified by exact solve), so beat error = |c|. No /2.
+  // Beat error = | mean(Δ_even) − mean(Δ_odd) | / 2 over clean (dk==1) intervals.
+  // This is the swing-physics definition (half the long/short interval difference)
+  // and, unlike the parity regression coefficient, it is robust to missed beats —
+  // a dropped tick never enters the even/odd groups, so parity can't collapse.
   let beMs = 0;
-  {
+  if(life.nEven >= 3 && life.nOdd >= 3){
+    beMs = Math.abs(life.sumEven/life.nEven - life.sumOdd/life.nOdd) * 1000 / 2;
+  } else {
+    // fallback: centred parity coefficient (halved), only until enough clean pairs
     const d = life.Skk*life.Spp - life.Skp*life.Skp;
     if(Math.abs(d) > 1e-18){
       const c = (life.Skk*life.Spt - life.Skp*life.Skt) / d;
-      beMs = Math.abs(c) * 1000;
+      beMs = Math.abs(c) * 1000 / 2;
     }
   }
 
@@ -1367,6 +1383,7 @@ async function start(){
   life.startedAt = Date.now();
   life.active = true;
   rateHistory = []; lastRateSampleAt = 0;
+  if(typeof ampSmoothReset==='function') ampSmoothReset();
 
   if(ui.wakeLock.checked) acquireWakeLock();
   setupAutoLog();
@@ -1422,6 +1439,7 @@ function reset(){
   life.startedAt = Date.now();
   life.active = !!audioCtx;
   rateHistory = []; lastRateSampleAt = 0;
+  if(typeof ampSmoothReset==='function') ampSmoothReset();
 }
 
 ui.start.onclick=start; ui.stop.onclick=stop; ui.reset.onclick=reset;
@@ -1639,10 +1657,37 @@ function analyze(){
 
   const measHalf = B_fit;                              // measured half-period (s)
   const rateSpd  = (expHalf - clockCorrHalf(measHalf))/expHalf * 86400;
-  // C_fit is the parity coefficient of t = A + B·k + C·(k&1). The half-periods are
-  // H+E and H−E (E = beat error); with odd beats at H+E, C_fit comes out EQUAL to E
-  // (verified by exact solve), so beat error = |C_fit|. No /2.
-  const beatErrMs = Math.abs(C_fit) * 1000;
+
+  // ---- Beat error from the swing mathematics -------------------------------
+  // Physics: with beat error the two half-swings alternate long/short around the
+  // nominal beat period b = 3600/BPH, i.e. intervals Δᵢ = b + (−1)^i·ε + noise,
+  // where ε is the beat error (the tock's offset from the midpoint between its
+  // neighbouring ticks). The best simple estimator uses every interval and cancels
+  // slow rate drift by subtracting adjacent intervals:
+  //
+  //     beat error = | median(Δ_even) − median(Δ_odd) | / 2
+  //
+  // (equivalently half the alternating sum of the interval series — the DFT
+  // Nyquist bin where a tick/tock alternation lives). The /2 is essential: the
+  // alternating offset ε is HALF the difference between the long and short
+  // intervals, because the imbalance is shared by both half-swings (H+ε and H−ε).
+  // Missed beats are rejected by dropping intervals that deviate >30% from b and
+  // grouping by the assigned beat-index parity, so parity survives gaps. This is
+  // far more robust than the least-squares parity coefficient, which collapses
+  // toward zero when a missed beat flips parity mid-window.
+  const beEven = [], beOdd = [];
+  for(let i=1;i<n;i++){
+    if(!inlier[i]) continue;
+    const d = beats[i].t - beats[i-1].t;
+    if(Math.abs(d - expHalf) > 0.30*expHalf) continue;   // skip missed-beat interval
+    (beatIndex[i] & 1 ? beOdd : beEven).push(d);
+  }
+  let beatErrMs;
+  if(beEven.length >= 3 && beOdd.length >= 3){
+    beatErrMs = Math.abs(median(beEven) - median(beOdd)) * 1000 / 2;
+  } else {
+    beatErrMs = Math.abs(C_fit) * 1000 / 2;   // fallback if too few clean intervals
+  }
 
   // residual stats for confidence
   const res2 = [];
@@ -1782,44 +1827,42 @@ function estimateAmplitude(measHalf, liftAngle){
     const noiseMed = median(noiseSamples);
     const noiseMad = mad(noiseSamples, noiseMed) * 1.4826 || 1e-9;
 
-    // The amplitude formula needs the UNLOCK → DROP span (the full lift arc):
-    // unlock = the FIRST sub-pulse of the beat, drop = the LAST. The loudest pulse
-    // (peakIdx) can be the impulse OR the drop depending on movement/mic, so we do
-    // NOT assume peakIdx is the end. Instead we scan the whole beat region and take
-    // dt = (last supra-threshold onset) − (first supra-threshold onset). Onsets
-    // (rising edges) are used so ringing/pulse width doesn't smear the endpoints,
-    // and first/last (not strongest) makes the reading independent of which pulse
-    // is loudest. k is the lag in samples before peakIdx (k>0 = earlier, k<0 = later).
-    let dt = 0, unlockLag = 0, dropLag = 0, okBeat = false;
-    for(const nSig of [4.0, 2.5]){
+    // The amplitude formula needs the LIFT TIME LT = first-noise → third-noise of
+    // the beat (unlock → drop), per Witschi's convention. We detect sub-pulse
+    // ONSETS (rising threshold crossings) on the fast envelope so ringing and pulse
+    // width don't smear the endpoints. The threshold rides just above the noise
+    // floor so the soft unlock still triggers it; we take the FIRST onset (unlock)
+    // and the LAST onset (drop) within the beat window. k = lag in samples before
+    // peakIdx (k>0 = earlier, k<0 = later). The drop can sit just past peakIdx when
+    // the impulse is loudest, so we scan a little forward too.
+    let dt = 0, unlockLag = 0, okBeat = false;
+    for(const nSig of [3.0, 2.0]){
       const thr = noiseMed + nSig*noiseMad;
-      // The drop can lie a little AFTER peakIdx when peakIdx is the impulse; allow a
-      // forward reach of dtMaxSec past the peak so the last pulse is included.
-      const fwd = Math.ceil(sampleRate * dtMaxSec);
-      let firstOn = -1, lastOn = -1, prevAbove = false;
-      for(let k=maxLook; k>=-fwd; k--){                 // earlier → later across the beat
+      const fwd = Math.ceil(sampleRate * 0.004);      // small reach past the peak
+      let firstOn = -1, lastOn = -1, prevAbove = false, run = 0;
+      for(let k=maxLook; k>=-fwd; k--){               // earlier → later across the beat
         const above = fastAt(peakIdx, k) > thr;
-        if(above && !prevAbove){                        // rising edge = pulse onset
-          if(firstOn < 0) firstOn = k;                  // first (earliest) onset = unlock
-          lastOn = k;                                   // keep updating → last onset = drop
+        if(above && !prevAbove){                       // rising edge = sub-pulse onset
+          if(firstOn < 0) firstOn = k;                 // first onset = unlock
+          lastOn = k;                                  // keep updating → last onset = drop
         }
         prevAbove = above;
       }
       if(firstOn >= 0 && lastOn > firstOn){
-        unlockLag = firstOn; dropLag = lastOn;
-        dt = (unlockLag - dropLag) / sampleRate;        // unlock → drop
+        unlockLag = firstOn;
+        dt = (firstOn - lastOn) / sampleRate;          // unlock → drop = LT
         okBeat = true;
         break;
       }
     }
     if(okBeat){
-      // Accept only physically-plausible spans for the measured period (the same
-      // derived bounds used for the search window above), not a fixed ms range.
+      // Accept only physically-plausible lift times for the measured period, and
+      // reject anything implying an impossible amplitude (gates noise).
       if(dt > dtMinSec && dt < dtMaxSec){
         offsets.push(dt);
-        // keep the clearest beat for the oscilloscope (anchor on the drop)
+        // keep the clearest beat for the oscilloscope (anchor on the peak)
         if(peakV > bestScopeV){ bestScopeV = peakV;
-          bestScope = buildScopeSlice(peakIdx, unlockLag, noiseMed + 4*noiseMad); }
+          bestScope = buildScopeSlice(peakIdx, unlockLag, noiseMed + 3*noiseMad); }
       }
     }
   }
@@ -1829,18 +1872,51 @@ function estimateAmplitude(measHalf, liftAngle){
   if(bestScope) ampDiag.scope = bestScope;
   if(offsets.length < 3) return null;
 
-  const dt = robustMean(offsets);
-  ampDiag.dt = dt;
+  // ---- Stabilise the lift time --------------------------------------------
+  // Amplitude amplifies LT jitter through the nonlinear 1/sin formula (at 18000 vph,
+  // A=270°, a 0.1 ms LT error ≈ 2.2° of amplitude noise). So we filter in the LT
+  // domain — where the noise is additive — before converting to degrees.
+  //
+  // 1) Hampel spike removal across this call's per-beat LT values (drop outliers
+  //    beyond 3·1.4826·MAD), then take the median as this instant's LT.
+  const ltMed0 = median(offsets);
+  const ltMad  = mad(offsets, ltMed0) * 1.4826 || 1e-9;
+  const ltClean = offsets.filter(v => Math.abs(v - ltMed0) <= 3*ltMad);
+  const ltInst  = ltClean.length ? median(ltClean) : ltMed0;   // instantaneous LT (s)
+  ampDiag.dt = ltInst;
   // confidence ≈ fraction of attempted beats that yielded a clean unlock pulse
   ampDiag.conf = attempts ? Math.min(1, offsets.length/Math.max(4, attempts*0.8)) : 0;
 
-  // amplitude = lift / (2·sin(π·Δt / T_balance))
+  // 2) EMA with a fast start over successive calls (amplitude drifts slowly). The
+  //    gain α starts at 1 (adopt instantly) and decays toward α_min so the reading
+  //    converges fast then settles ~7× quieter. A position change is a step, handled
+  //    by the snap rule below.
+  const bSec = measHalf;                                   // one beat period (s)
+  const tauSec = 3.5;                                      // smoothing time constant
+  const aMin = 1 - Math.exp(-bSec/tauSec);
+  ampSmooth.n++;
+  // step/snap: if the instantaneous LT sits far from the smoothed value for several
+  // consecutive calls (watch was moved to a new position), jump to it and re-warm.
+  const sig = (ltMad || 1e-9) * 3;
+  if(ampSmooth.init && Math.abs(ltInst - ampSmooth.lt) > 2.5*sig){
+    ampSmooth.runSame++;
+    if(ampSmooth.runSame >= 6){ ampSmooth.lt = ltInst; ampSmooth.n = 6; ampSmooth.runSame = 0; }
+  } else ampSmooth.runSame = 0;
+  if(!ampSmooth.init){ ampSmooth.lt = ltInst; ampSmooth.init = true; }
+  else { const alpha = Math.max(1/ampSmooth.n, aMin); ampSmooth.lt += alpha * (ltInst - ampSmooth.lt); }
+
+  const dt = ampSmooth.lt;                                 // smoothed lift time (s)
+
+  // amplitude = lift / (2·sin(π·f·LT)),  f = BPH/7200 = 1/T_balance
   const s = Math.sin(Math.PI * dt / T_balance);
   if(s < 1e-3) return null;
   const A = liftAngle / (2*s);
-  if(A < 140 || A > 340) return null;
+  if(A < 90 || A > 360) return null;                       // physical gate
   return A;
 }
+// Persistent cross-call smoother state for the lift time (reset on Start/reset).
+let ampSmooth = { init:false, lt:0, n:0, runSame:0 };
+function ampSmoothReset(){ ampSmooth = { init:false, lt:0, n:0, runSame:0 }; }
 
 // Capture a short fast-envelope slice around one beat for the sub-pulse scope.
 // Returns {samples, impulseK, unlockK, thr, sr} where indices are *lags* (ms
